@@ -9,12 +9,12 @@ information. Base for the source graph structure in the embedding GUI.
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
+__date__        = '2017-10-30'      # last update
 
-
-from collections import namedtuple
+from copy import copy
 
 class Node:
-    '''Astract Node class for Graph construction
+    '''Node class for Graph construction
 
     Parameters:
         n   : name or label for the node
@@ -28,6 +28,12 @@ class Node:
         '''Construct a Node instance'''
         self.n, self.adj, self.v, self.x, self.y = n, adj, v, x, y
 
+    def copy(self):
+        '''Return a deep copy of the node, assuming 'adj' is a dict of floats and
+        and other parameters are copyable '''
+        n, v, x, y = [copy(z) for z in [self.n, self.v, self.x, self.y]]
+        return Node(n, dict(self.adj), v, x, y)
+
     def echo(self):
         '''Human readable node information'''
 
@@ -38,10 +44,12 @@ class Node:
             print('Location: {0}::{1}'.format(self.x,self.y))
         print('Adjacency:')
         pprint(self.adj)
+        print('\n')
+        n.echo()
 
 
 
-class Graph:
+class Graph(object):
     '''General base class for qubit graphs'''
 
     file_delim = ' '    # graph file delimiter
@@ -79,6 +87,19 @@ class Graph:
             print('Failed to read graph source file: {0}'.format(fn))
 
 
+    def addNode(self, n, v=0., x=None, y=None):
+        '''Add an unconnected node to the Graph'''
+
+        assert n not in self.nodes, 'Node already exists'
+        self.nodes[n] = Node(n, adj={}, v=v, x=x, y=y)
+
+    def addEdge(self, n, m, v=0.):
+        '''Add an edge between two existing nodes'''
+
+        assert n in self.nodes and m in self.nodes, 'Missing node'
+        self.nodes[n].adj[m] = v
+        self.nodes[m].adj[n] = v
+
     # graph methods
 
     def size(self):
@@ -89,6 +110,28 @@ class Graph:
         '''Return the degree of the graph'''
         return max(len(n.adj) for n in self.nodes)
 
+    def number_of_nodes(self):
+        '''Return the number of nodes in the graph'''
+        return self.size()
+
+    def number_of_edges(self):
+        '''Return the number of edges in the graph'''
+        return int(sum(len(self.nodes[n].adj) for n in self.nodes)//2)
+
+    def subgraph(self, nodes):
+        '''Return the sub-graph composed of the given list of nodes.
+        The nodes in the subgraph are deep-copies of those of the full graph.'''
+
+        G = Graph()
+
+        # get copy of the included nodes
+        G.nodes = {k: self.nodes[k].copy() for k in nodes if k in self.nodes}
+
+        # remove extra edges
+        for k, node in G.nodes.items():
+            node.adj = {j: v for j,v in node.adj.items() if j in G.nodes}
+
+        return G
 
     # private methods
 
