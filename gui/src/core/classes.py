@@ -8,9 +8,10 @@
 # Last Modified: 12.01.2015
 #---------------------------------------------------------
 
-import numpy as np
 import re
 import os
+import traceback
+import numpy as np
 
 from core.chimera import tuple_to_linear, linear_to_tuple
 import core.core_settings as settings
@@ -18,6 +19,7 @@ from core.dense_embed.assign import assign_parameters
 
 # try to import different embedding methods
 embedders = {'dense': True,
+             'layout': True,
              'heur': True}
 try:
     from core.dense_embed.embed import denseEmbed, setChimera
@@ -25,6 +27,14 @@ try:
 except Exception as e:
     print('Could not load dense embedding method...')
     embedders['dense'] = False
+
+try:
+    from layout_embed.embed import layoutEmbed, layoutConfiguration
+    from layout_embed.embed import setProblem, setTarget, layoutToModels
+except Exception as e:
+    print('Could not load layout embedding method...')
+    embedders['layout'] = False
+    print (traceback.print_exc())
 
 try:
     from dwave_sapi import find_embedding
@@ -54,8 +64,8 @@ class Embedding:
         self.coef_dir = None        # directory to save coefficient files into
         self.good = False           # flag for good embedding
 
-        self.full_adj = True    # flag for full adjacency
-        self.use_dense = True   # flag for dense placement
+        self.full_adj = True        # flag for full adjacency
+        self.embed_method = 'dense' # value for for embedding method
 
         self.dense_trials = 1   # number of allowed dense placement trials
 
@@ -79,15 +89,18 @@ class Embedding:
 
         # export parameters
         self.J = np.zeros(0)    # array of cell interactions (all cells)
+        self.spacing = 1.       # spacing in layout input
 
     # EMBEDDING METHODS
 
     def run_embedding(self):
         ''' '''
 
-        if self.use_dense:
+        if self.embed_method == 'dense':
             self.run_dense_embedding()
-        else:
+        elif self.embed_method == 'layout':
+            self.run_layout_embedding()
+        elif self.embed_method == 'heuristic':
             self.run_heur_embedding()
 
         nqbits = sum(len(x) for x in self.models.values())
@@ -99,7 +112,7 @@ class Embedding:
         '''Setup and run the Dense Placement algorithm'''
 
         # update embedding type in case direct call
-        self.use_dense = True
+        self.embed_method = 'dense'
 
         # format embedding parameters
         setChimera(self.chimera_adj, self.M, self.N, self.L)
@@ -136,11 +149,43 @@ class Embedding:
 
         self.models = {k: models[k]['qbits'] for k in models}
 
+    def run_layout_embedding(self):
+        '''Setup and run the Layout-Aware Placement algorithm'''
+        
+        # update embedding type in case direct call
+        self.embed_method = 'layout'
+        
+        stats = {}
+        configuration = {}
+        configuration['M'] = self.M
+        configuration['N'] = self.N
+        configuration['L'] = self.L
+        configuration['CIRCUIT'] = self.qca_file.split('/')[-1]
+        layoutConfiguration(configuration)
+
+        active_cells, qca_adj = self.get_reduced_qca_adj()
+        
+        try:
+            setProblem(qca_adj, self.cells, self.spacing)
+            setTarget(self.chimera_adj)
+            self.good, cell_map = layoutEmbed(configuration, stats)
+            if self.good:
+                print('Layout-Aware Embedding Successful')
+        except Exception as e:
+            self.good = False
+            if type(e).__name__ == 'KeyboardInterrupt':
+                raise KeyboardInterrupt
+            print('Layout-Aware Embedding Failed')
+            print (traceback.print_exc())
+            return
+        
+        self.models = layoutToModels(cell_map)
+
     def run_heur_embedding(self, full_adj=True):
         '''Setup and run the Heuristic algorithm'''
 
         # update embedding type in case direct call
-        self.use_dense = False
+        self.embed_method = 'heur'
 
         active_cells, qca_adj = self.get_reduced_qca_adj()
         S_size = len(qca_adj)
@@ -181,9 +226,9 @@ class Embedding:
 
     # PARAMETER ACCESS
 
-    def set_embedder(self, dense=True):
+    def set_embedder(self, method='dense'):
         '''Set embedder type'''
-        self.use_dense = dense
+        self.embed_method = method
 
     def set_chimera(self, adj, active_range, M, N, L=4):
         '''Set the Chimera graph to embed into'''
@@ -194,7 +239,7 @@ class Embedding:
         self.active_range = active_range
         self.chimera_adj = adj
 
-    def set_qca(self, J, cells, full_adj=True):
+    def set_qca(self, J, cells, full_adj=True, spacing=1.):
         '''Set up the qca structure'''
 
         self.full_adj = full_adj
@@ -220,7 +265,12 @@ class Embedding:
         # fixed cell polarizations
         self.fixed_pols = {cell: cells[cell].pol for cell in self.fixed}
 
+        # coupler weights
         self.J = J
+        
+        # QCA layout spacing 
+        self.spacing = spacing
+
 
     def generate_driver_pols(self, full=True):
         '''generate a list of all unique driver polarization sets'''
@@ -319,7 +369,8 @@ class Embedding:
 
         # flags
         self.full_adj = info['full_adj'] == 'True'
-        self.use_dense = info['use_dense'] == 'True'
+        #TODO: Not tested with other methods
+        self.embed_method = info['embed_method']
 
         # chimera parameters
         self.M = int(info['M'])
