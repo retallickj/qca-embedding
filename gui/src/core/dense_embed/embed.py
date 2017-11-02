@@ -368,11 +368,11 @@ def setChimera(chimera_adj, m, n, l):
     '''
 
     global _qbitAdj, M, N, L
-    
+
     M, N, L = m, n, l
 
     _qbitAdj = chimera_adj
-    
+
     # sort each keyed list
     for key in _qbitAdj:
         _qbitAdj[key].sort()
@@ -1155,10 +1155,7 @@ def placeCell(cell):
     Routing.disableQubits(qbs)
 
     log('Placed on qubit: %s\n\n' % str(qbit))
-#    log('Paths: \n')
-#    for path in paths:
-#        log('\t %s \n' % str(path))
-#    log('\n')
+    
     return qbit, paths
 
 
@@ -1564,6 +1561,8 @@ def selectSeam(seam_dicts):
     cands = filter(lambda x: x['cost'] == seams[0]['cost'], seams)
 
     return cands[int(random()*len(cands))]
+
+
 
 
 # NEW METHODS FOR WIRE SHORTENING

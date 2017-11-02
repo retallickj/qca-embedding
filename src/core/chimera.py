@@ -8,7 +8,7 @@ Chimera hardware connectivity graph structure and related methods
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
-__date__        = '2017-10-30'      # last update
+__date__        = '2017-10-31'      # last update
 
 
 from collections import namedtuple
@@ -107,6 +107,8 @@ class Chimera(Graph):
         # fill tiles with qubit indices for convenience
         self.__fillTiles()
 
+    # File I/O
+
     def fromFile(self, fn):
         '''Load the Chimera graph from file'''
         # construct graph from file
@@ -130,7 +132,6 @@ class Chimera(Graph):
                         edges.append((k1,k2))
             for i,j in sorted(edges, key=lambda x: x[::-1]):
                 fp.write('{0} {1}\n'.format(i,j))
-
 
 
     def __fillTiles(self):

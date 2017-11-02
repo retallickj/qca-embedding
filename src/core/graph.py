@@ -9,11 +9,11 @@ information. Base for the source graph structure in the embedding GUI.
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
-__date__        = '2017-10-30'      # last update
+__date__        = '2017-10-31'      # last update
 
 from copy import copy
 
-class Node:
+class Node(object):
     '''Node class for Graph construction
 
     Parameters:
@@ -35,7 +35,7 @@ class Node:
         return Node(n, dict(self.adj), v, x, y)
 
     def echo(self):
-        '''Human readable node information'''
+        '''Human readable node information for debug'''
 
         from pprint import pprint
 
@@ -91,7 +91,7 @@ class Graph(object):
         '''Add an unconnected node to the Graph'''
 
         assert n not in self.nodes, 'Node already exists'
-        self.nodes[n] = Node(n, adj={}, v=v, x=x, y=y)
+        self.nodes[n] = Node(n, v=v, x=x, y=y)
 
     def addEdge(self, n, m, v=0.):
         '''Add an edge between two existing nodes'''
