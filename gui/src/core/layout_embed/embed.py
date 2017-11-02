@@ -1,0 +1,294 @@
+'''
+Created on Jan 23, 2017
+
+@author: JosePinilla
+'''
+
+import os
+import sys
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+
+##### DIFFUSION
+from diffusion import diffusion
+##### ROUTING
+from traverse_router import legalize
+
+
+VERBOSE =  False
+PLOT = False
+
+# Chimera and Dimensions
+Chimera = None
+N = 12
+M = 12
+L = 4
+
+# Problem and Dimensions
+QCa = None
+X = 0
+Y = 0
+W = 1000
+H = 1000
+
+DIFFUSION = True
+CIRCUIT = None
+
+def plotLocations(QCA):
+    pos = {}
+    for c in QCA:
+        cell = QCA.node[c]['cell']
+        pos[c] = (cell['x'] , cell['y'])
+    plt.figure(0)
+    plt.clf()
+    nx.draw(QCA, pos=pos, with_labels=True)
+    
+    plt.grid('on')
+    plt.axis('on')
+    plt.axis([0,N,0,M])
+    x_ticks = np.arange(0, N) # steps are width/width = 1 without scaling
+    y_ticks = np.arange(0, M)
+    plt.xticks(x_ticks)
+    plt.yticks(y_ticks)
+    plt.gca().invert_yaxis()
+    if WRITE:
+        if not os.path.exists('./plot/'):
+            os.makedirs('./plot/')
+        plt.savefig('./plot/plt_' + CIRCUIT + '0.png')
+    if PLOT:
+        plt.show()
+
+
+def partitionScale(QCA):
+    '''
+    Scale the QCA layout to the dimensions of the Chimera
+    and assign cells to partitions/tiles/regions. Store new
+    scaled layout locations
+    :param QCA: QCA graph
+    :param num_regions_x: columns of tiles/regions
+    :param num_regions_y: rows of tiles/regions
+    '''
+    
+    num_regions_x, num_regions_y = N, M
+    
+    # Cell container for each tile/region
+    num_regions = num_regions_x*num_regions_y
+    bins = {key : [] for key in range( 0,  num_regions)}
+    
+    # Size of a region
+    qca_w_scale = W / float(num_regions_x)
+    qca_h_scale = H / float(num_regions_y)  
+
+    # Assign partitions and scale to chimera size
+    for node in QCA:
+        # Cell data from graph
+        cell = QCA.node[node]['cell']
+        
+        # Scale
+        scaled_x = (cell['x'] - X) / qca_w_scale
+        scaled_y = (cell['y'] - Y) / qca_h_scale
+        cell['x'] = scaled_x
+        cell['y'] = scaled_y
+        
+        # Assign tile/region
+        cell_region_x = int(np.floor( scaled_x ))
+        cell_region_y = int(np.floor( scaled_y ))
+        region = cell_region_x + cell_region_y*num_regions_x
+        QCA.node[node]['tile'] = region
+        bins[region].append(node)
+    
+    # Plot QCA Graph   
+    if PLOT or WRITE: plotLocations(QCA)
+        
+    return bins
+
+def layoutToModels(cell_map):
+    
+    models = {}
+    
+    for node in cell_map:
+         
+        if VERBOSE:
+            print ("CELL " + str(node))
+            print (cell_map[node]['qubits'])
+         
+        models[int(node[1:])] = cell_map[node]['qubits']
+    
+    return models
+
+def getSupply(Chimera):
+    
+    supply = {}
+    
+    for m in range(M):
+        for n in range(N):
+            tile = n + N*m
+            supply[tile] = []
+            for h in range(2):
+                for i in range(L):
+                    qubit_tuple = (m,n,h,i)
+                    if qubit_tuple in Chimera:
+                        if Chimera.neighbors(qubit_tuple):
+                            Chimera.node[qubit_tuple]['alive'] = True
+                            supply[tile].append(qubit_tuple) 
+                        else: 
+                            Chimera.node[qubit_tuple]['alive'] = False
+    return supply
+        
+
+def defaultConf ():
+    DEFAULT_CONF = {}
+    
+    DEFAULT_CONF['PLOT'] = False
+    DEFAULT_CONF['STATS'] = True
+    DEFAULT_CONF['WRITE'] = False
+    DEFAULT_CONF['VERIFY'] = False
+    DEFAULT_CONF['VERBOSE'] = False
+    DEFAULT_CONF['WRITELP'] = False
+    
+    DEFAULT_CONF['SEED'] =                              8
+    
+    DEFAULT_CONF['D_MAX'] =                             8.0
+    DEFAULT_CONF['MAX_DEG'] =                           6.0
+    
+    DEFAULT_CONF['diffusion'] = {}
+    DEFAULT_CONF['diffusion']['ENABLE'] =               True
+    DEFAULT_CONF['diffusion']['C_LIM'] =                8.0
+    DEFAULT_CONF['diffusion']['DELTA_T'] =              0.3
+    DEFAULT_CONF['diffusion']['D_SCALER'] =             3.0
+    DEFAULT_CONF['diffusion']['DIAGONAL'] =             0.5
+    DEFAULT_CONF['diffusion']['VARIANCE_GROUP'] =       3.0
+    DEFAULT_CONF['diffusion']['VARIANCE_THR'] =         0.01
+     
+    DEFAULT_CONF['routing'] = {}
+
+    DEFAULT_CONF['routing']['SIMPLE'] =                 False
+    DEFAULT_CONF['routing']['LENGTH_COST'] =            True
+    DEFAULT_CONF['routing']['NEIGHBORHOOD'] =           '2-block'
+    DEFAULT_CONF['routing']['LENGTH_PRIORITY'] =        True
+    DEFAULT_CONF['routing']['RANDOMIZE_CELLS'] =        True
+    DEFAULT_CONF['routing']['RANDOMIZE_CANDIDATES'] =   False
+
+    DEFAULT_CONF['routing']['BASE_A'] =                 1.0
+    DEFAULT_CONF['routing']['BASE_B'] =                 0.2
+    DEFAULT_CONF['routing']['BASE_C'] =                 0.0
+    DEFAULT_CONF['routing']['DELTA_H'] =                0.1
+    DEFAULT_CONF['routing']['DELTA_P'] =                0.45
+    
+    return DEFAULT_CONF
+
+def layoutConfiguration(conf, test_conf={}):
+
+    TEMP_CONF = defaultConf()
+    
+    # Import class I and II dictionaries into configuration
+    for k_I, v_I in test_conf.items():
+        if not isinstance(v_I, dict):
+            TEMP_CONF.update({ k_I : v_I })
+        else:
+            if k_I in TEMP_CONF:
+                for k_II, v_II in v_I.items():
+                    TEMP_CONF[k_I].update({ k_II : v_II })
+                
+    conf.update(TEMP_CONF)
+
+def setProblem(problem_adj, nodes_loc, spacing):
+    
+    global QCA
+    global X, Y, W, H
+
+    QCA = nx.DiGraph()
+
+    qca_w1 = sys.maxint
+    qca_w2 = 0 
+    qca_h1 = sys.maxint
+    qca_h2 = 0
+
+    # Iterate only through active cells
+    for cell in problem_adj:
+        cell_x = nodes_loc[cell].x
+        cell_y = nodes_loc[cell].y
+        degree =  len(problem_adj[cell])
+        
+        attr_dict = {'cell': {'x' : cell_x, 'y' : cell_y, 'degree' : degree}}
+        QCA.add_node(cell,attr_dict=attr_dict)
+        
+        edges_in    = [(cell,neigh) for neigh in problem_adj[cell]]
+        edges_out   = [(neigh,cell) for neigh in problem_adj[cell]]
+        
+        QCA.add_edges_from(edges_in)
+        QCA.add_edges_from(edges_out)
+        
+        if ( cell_x < qca_w1):
+            qca_w1 = cell_x
+        elif (cell_x > qca_w2):
+            qca_w2 = cell_x
+        if ( cell_y < qca_h1):
+            qca_h1 = cell_y
+        elif ( cell_y > qca_h2):
+            qca_h2 = cell_y
+          
+
+    X = qca_w1-(spacing/2)
+    Y = qca_h1-(spacing/2)
+    W = qca_w2-qca_w1+(spacing)
+    H = qca_h2-qca_h1+(spacing)
+    
+def setTarget(chimera_adj):
+    
+    global Chimera
+    
+    # Create Chimera graph structure 
+    Chimera = nx.Graph(chimera_adj)
+    
+
+def parseConfiguration(configuration):
+    
+    
+    global M, N, L
+     
+    M, N, L = configuration['M'], configuration['N'], configuration['L']
+    
+    global VERBOSE, PLOT, WRITE
+    
+    VERBOSE =   configuration['VERBOSE']
+    PLOT =      configuration['PLOT']
+    WRITE =     configuration['WRITE']
+    
+    global CIRCUIT, DIFFUSION
+    
+    CIRCUIT = configuration['CIRCUIT']
+    DIFFUSION = configuration['diffusion']['ENABLE']
+    
+    
+
+def layoutEmbed(configuration, stats):
+    '''
+    :param configuration: Layout embedding configuration 
+    :param chimera_adj: Adjacency matrix of the chimera graph
+    '''
+        
+    parseConfiguration(configuration)
+    
+    # Parse Chimera to collect alive qubits per tiles
+    tiles = getSupply(Chimera)
+    
+    # QCA graph layout partition into bins
+    if VERBOSE: print("Partition")
+    bins = partitionScale(QCA)
+    
+    # Diffusion to make a denser clustering
+    if VERBOSE: print("Diffusion")
+    if DIFFUSION:
+        stats_diffusion = diffusion(Chimera, QCA, bins, tiles, configuration)
+        stats.update(stats_diffusion)
+
+    # Return true if embedding was successful
+    if VERBOSE: print("Routing")    
+    good, stats_legal = legalize(Chimera, QCA, bins, tiles, configuration)
+    stats.update(stats_legal) 
+    
+    cell_map =  QCA.node
+    
+    return good, cell_map

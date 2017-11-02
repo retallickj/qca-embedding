@@ -17,6 +17,7 @@ from qca_widget import QCAWidget
 from chimera_widget import ChimeraWidget
 from core.classes import Embedding, get_embedder_flags
 from core.chimera import tuple_to_linear
+import traceback
 
 class MainWindow(QtGui.QMainWindow):
     '''Main Window widget for embedder application'''
@@ -42,7 +43,7 @@ class MainWindow(QtGui.QMainWindow):
         self.chimera_file = ''      # relative path to chimera file
         self.qca_active = False     # True when QCAWidget set
         self.full_adj = True        # True when using full adjacency
-        self.use_dense = True       # True if using Dense Placement embedder
+        self.embed_method = 'dense' # Value of embedding method (Default: Dense) 
         self.tile_style = 0         # tile style
 
         self.embeddings = {}        # list of embeddings
@@ -155,10 +156,13 @@ class MainWindow(QtGui.QMainWindow):
         # Tool menu
 
         self.action_dense_embed_flag = QtGui.QAction('Dense', self)
-        self.action_dense_embed_flag.triggered.connect(self.switch_embedder)
+        self.action_dense_embed_flag.triggered.connect(self.switch_dense_embed)
 
+        self.action_layout_embed_flag = QtGui.QAction('Layout-Aware', self)
+        self.action_layout_embed_flag.triggered.connect(self.switch_layout_embed)
+        
         self.action_heur_embed_flag = QtGui.QAction('Heuristic', self)
-        self.action_heur_embed_flag.triggered.connect(self.switch_embedder)
+        self.action_heur_embed_flag.triggered.connect(self.switch_heur_embed)
 
         tile_func_ab = lambda: self.set_tile_style(0)
         tile_func_a = lambda: self.set_tile_style(-1)
@@ -197,17 +201,19 @@ class MainWindow(QtGui.QMainWindow):
 
         embedders = get_embedder_flags()
 
-        self.use_dense = embedders['dense']
+        self.embed_method = 'dense'
+        self.action_dense_embed_flag.setEnabled(False)
+        
         if embedders['dense']:
             embedder_menu.addAction(self.action_dense_embed_flag)
+
+        if embedders['layout']:
+            embedder_menu.addAction(self.action_layout_embed_flag)
 
         if embedders['heur']:
             embedder_menu.addAction(self.action_heur_embed_flag)
 
-        self.action_dense_embed_flag.setEnabled(not self.use_dense)
-        self.action_heur_embed_flag.setEnabled(self.use_dense)
-
-        print('Using dense embedder: {0}'.format(str(self.use_dense).upper()))
+        print('Using embedder: {0}'.format(str(self.embed_method).upper()))
 
         tile_style_menu = tool_menu.addMenu('Tile style')
         tile_style_menu.addAction(self.action_tile_AB_flag)
@@ -292,12 +298,31 @@ class MainWindow(QtGui.QMainWindow):
                 'Switch to {0} Adjacency...'.format(sub_message))
             self.qca_widget.setAdjacency(self.full_adj)
 
-    def switch_embedder(self):
-        '''Change between embedding algorithms and set menu enabling'''
+    def switch_embedder(self, embed_method):
+        if embed_method=='dense':
+            self.switch_dense_embed()
+        if embed_method=='layout':
+            self.switch_layout_embed()
+        if embed_method=='heur':
+            self.switch_heur_embed()
 
-        self.action_dense_embed_flag.setEnabled(self.use_dense)
-        self.action_heur_embed_flag.setEnabled(not self.use_dense)
-        self.use_dense = not self.use_dense
+    def switch_dense_embed(self):
+        self.action_dense_embed_flag.setEnabled(False)
+        self.action_layout_embed_flag.setEnabled(True)
+        self.action_heur_embed_flag.setEnabled(True)
+        self.embed_method = 'dense'
+        
+    def switch_layout_embed(self):
+        self.action_dense_embed_flag.setEnabled(True)
+        self.action_layout_embed_flag.setEnabled(False)
+        self.action_heur_embed_flag.setEnabled(True)
+        self.embed_method = 'layout'
+    
+    def switch_heur_embed(self):
+        self.action_dense_embed_flag.setEnabled(True)
+        self.action_layout_embed_flag.setEnabled(True)
+        self.action_heur_embed_flag.setEnabled(False)
+        self.embed_method = 'heuristic'
 
     def set_tile_style(self, style):
         ''' '''
@@ -355,9 +380,9 @@ class MainWindow(QtGui.QMainWindow):
 
             # embedding object
             embedding = Embedding(self.qca_widget.filename)
-            embedding.set_embedder(self.use_dense)
+            embedding.set_embedder(self.embed_method)
             embedding.set_chimera(chimera_adj, active_range, M, N)
-            embedding.set_qca(J, cells, self.full_adj)
+            embedding.set_qca(J, cells, self.full_adj, self.qca_widget.spacing)
 
             # run embedding
             try:
@@ -367,6 +392,7 @@ class MainWindow(QtGui.QMainWindow):
                     print('Embedding interrupted...')
                 else:
                     print('Something went wrong...')
+                    print (traceback.print_exc())
                 return
         except:
             print('\nUnexpected crash in embedding... possible disjoint graph')
@@ -483,8 +509,9 @@ class MainWindow(QtGui.QMainWindow):
                                           self.embeddings[ind].full_adj)
             if self.embeddings[ind].full_adj != self.full_adj:
                 self.switch_adjacency()
-            if self.embeddings[ind].use_dense != self.use_dense:
-                self.switch_embedder()
+                
+            if self.embeddings[ind].embed_method != self.embed_method:
+                self.switch_embedder(self.embeddings[ind].embed_method)
 
             # default coloring
             if color:
@@ -595,7 +622,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # adjacency and embedding type
         fp.write('full_adj: {0}\n'.format(embedding.full_adj))
-        fp.write('use_dense: {0}\n\n'.format(embedding.use_dense))
+        fp.write('embed_method: {0}\n\n'.format(embedding.embed_method))
 
         # chimera parameters
         fp.write('M: {0}\n'.format(embedding.M))
