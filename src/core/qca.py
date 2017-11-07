@@ -17,7 +17,7 @@ from collections import namedtuple, defaultdict
 from itertools import combinations
 import bisect
 import numpy as np
-from networkx import to_numpy_matrix
+import networkx as nx
 
 from pprint import pformat
 import re
@@ -237,6 +237,25 @@ class QCACircuit(Graph):
 
         self.__addCell(x, y, cf, pol, rot, dots)
 
+    def subgraphPn(self, adj=None, pn=None):
+        '''Construct a subgraph excluding the input and fixed polarization cells.
+        Node weights will be the cell biases for the given input index pn.
+
+        input:
+            adj : adjacency type, in self.adj_masks
+            pn  : input polarization index
+        '''
+
+        inds, h, J = self.computeCoefs(adj=adj, pn=pn)
+
+        G = nx.from_numpy_matrix(np.round(J,3))
+        for k,(i,_h) in enumerate(zip(inds, h)):
+            c = self.node[self.cells[i]]
+            G.add_node(k, ind=i, weight=round(_h,3), x=c['x'], y=c['y'])
+
+        return G
+
+
     def computeCoefs(self, adj=None, pn=None, gam=None):
         '''compute the normalized coefficients for the current QCACircuit under
         the given adjacency type and input cell polarization index
@@ -247,8 +266,6 @@ class QCACircuit(Graph):
             gam : transverse field
         '''
 
-        from pprint import pprint
-
         assert adj in self.adj_masks, 'Invalid adjacency type'
 
         if len(self)==0:
@@ -258,7 +275,7 @@ class QCACircuit(Graph):
                 return np.zeros(0), np.zeros([0,0]), np.zeros(0)
 
         # convert all edges to ordered adjacency array
-        J = np.asarray(to_numpy_matrix(self, nodelist=self.cells, dtype=float))
+        J = np.asarray(nx.to_numpy_matrix(self, nodelist=self.cells, dtype=float))
         J /= np.max(np.abs(J))
 
         # enforce adjacency
@@ -275,7 +292,7 @@ class QCACircuit(Graph):
         # input cell polarizations
         pols = np.zeros([len(self),], dtype=float)
         for i in self.clists['fixed']:
-            pols[i] = self.cells[i].pol
+            pols[i] = self.node[self.cells[i]]['pol']
         if isinstance(pn, int):
             input_pols = self.intToPol(pn, len(self.clists['input']))
             for i, p in zip(self.clists['input'], input_pols):
@@ -285,9 +302,9 @@ class QCACircuit(Graph):
         J = J[:,inds]
 
         if gam is None:
-            return h, J
+            return inds, h, J
         else:
-            return h, J, np.ones(h.shape, dtype=float)*gam
+            return inds, h, J, np.ones(h.shape, dtype=float)*gam
 
     def process(self):
         '''Process useful parameters from the QCACircuit'''
@@ -558,9 +575,9 @@ if __name__ == '__main__':
         print('missing QCADesigner file')
         sys.exit()
 
-    circuit = QCACircuit(fname=fn, verbose=True)
+    circuit = QCACircuit(fname=fn, verbose=False)
 
-    h, J = circuit.computeCoefs(adj='full', pn=1)
+    G = circuit.subgraphPn(adj='full', pn=0)
 
-    pprint(h)
-    pprint(J)
+    pprint(G.node)
+    pprint(G.edge)
