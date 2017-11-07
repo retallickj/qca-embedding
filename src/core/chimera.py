@@ -115,7 +115,7 @@ class Chimera(Graph):
         super(Chimera,self).fromFile(fn, nb=self.NB, mp=int)
 
         # Chimera parameters
-        self.M = self.N = int(round( sqrt(self.size()/(2*self.L)) , 0))
+        self.M = self.N = int(round( sqrt(len(self)/(2*self.L)) , 0))
 
     def toFile(self, fn):
         '''Save the Chimera graph to file'''
@@ -126,7 +126,7 @@ class Chimera(Graph):
             fp.write('{0} {1}\n'.format(2*M*N*L, self.number_of_edges()))
             # collect list of included couplers
             edges = []
-            for k1, n1 in self.nodes.items():
+            for k1, n1 in self.node.items():
                 for k2 in n1.adj:
                     if k1 < k2:
                         edges.append((k1,k2))

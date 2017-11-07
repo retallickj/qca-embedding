@@ -6,21 +6,23 @@ Specialised QCA Graph subclass, methods for parsing QCADesigner files, and
 related methods
 '''
 
+from __future__ import print_function   # needed for verbose print
+
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
-__date__        = '2017-10-31'      # last update
+__date__        = '2017-11-06'      # last update
 
-
-from __future__ import print_function   # needed for verbose print method
-import numpy as np
 from collections import namedtuple, defaultdict
 from itertools import combinations
+import bisect
+import numpy as np
+from networkx import to_numpy_matrix
 
-from pprint import pprint, pformat
+from pprint import pformat
 import re
 
-from graph import Graph, Node
+from graph import Graph
 
 
 def dget(d, key, default=None, mp=lambda x:x):
@@ -40,19 +42,19 @@ def dget(d, key, default=None, mp=lambda x:x):
 _CFs = {'normal':0, 'input':1, 'output':2, 'fixed':3}
 
 # cell-type tags tags in QCADesigner files
-_QCAD_CFs = {'QCAD_CELL_NORMAL': CFs['normal'],
-             'QCAD_CELL_INPUT':  CFs['input'],
-             'QCAD_CELL_OUTPUT': CFs['output'],
-             'QCAD_CELL_FIXED':  CFs['fixed']}
+_QCAD_CFs = {'QCAD_CELL_NORMAL': _CFs['normal'],
+             'QCAD_CELL_INPUT':  _CFs['input'],
+             'QCAD_CELL_OUTPUT': _CFs['output'],
+             'QCAD_CELL_FIXED':  _CFs['fixed']}
 
 # tags for different object types
-_tags = {'design':  'TYPE:DESIGN',
+_TAGS = {'design':  'TYPE:DESIGN',
          'cell':     'TYPE:QCADCell',
          'cell_obj': 'TYPE:QCADDesignObject',
          'dot':      'TYPE:CELL_DOT'}
 
 # keys for cell values
-_vals = {'cx': 'cell_options.cxCell',
+_VALS = {'cx': 'cell_options.cxCell',
          'cy':  'cell_options.cyCell',
          'cf':  'cell_function'}
 
@@ -128,122 +130,46 @@ class ParserNode:
         else:
             return None
 
-def parse(fname):
-    '''Parse a QCADesigner file and return the ParserNode head. If file is
-    invalid, return None.
+    def extractAllNested(self, tag):
+        '''Get a list all Nodes at any depth below the node with the given
+        tag. Will only find the firt instance of the tag in each branch'''
 
-    input:
-        fname   : filename of QCADesigner file.
-    '''
+        if self.tag == tag:
+            return [self,]
 
-    head = None
-    with open(fname, 'r') as fp:
-        head = ParserNode(fp, 'root')
-    return head
-
-
-# QCACircuit structure
-
-class QCACell(Node):
-    '''Specialized Node structure for describing QCA cells
-
-    parameters:
-
-        Node parameters
-
-        n       : cell label
-        adj     : adjacency dict of neighbouring cells
-        v       : value contained in node
-        x       : cell x location
-        y       : cell y location
-
-        Cell parameters
-
-        cf      : cell function
-        pol     : cell polarization
-        rot     : cell is rotated
-        dots    : list of cell quantum dot objects
-    '''
-
-    CFs = _CFs  # make cell-types externally visible through class prefix
-    QCADot = namedtuple('QCADot', ['x y q']) # quantum dot position and charge
-    Q0 = 1.60218e-19    # elementary charge for qdot charge normalization
-
-    def __init__(self, n, adj=dict(), v=0., x=None, y=None,
-                    cf=_CFs['normal'], pol=0, rot=False, dots=[]):
-        '''Initialise a QCACell instance'''
-        super(QCACell, self).__init__(n, adj, v, x, y)
-        self.cf, self.pol, self.rot, self.dots = cf, pol, rot, dots
+        nodes = []
+        for child in self.children:
+            nodes += child.extractAllNested(tag)
+        return nodes
 
     @staticmethod
-    def toDots(x, y, rot, pol, scale=1.):
-        '''Compute suitable quantum dots for a QCA cell with a given scale.
+    def parse(fname):
+        '''Parse a QCADesigner file and return the ParserNode head. If file is
+        invalid, return None
 
         input:
-            x       : x position of cell center
-            y       : y position of cell center
-            rot     : cell is rotated
-            pol     : cell polarization -> dot charges
-            scale   : side length of QCA cell
+            fname   : filename of QCADesigner file
         '''
 
-        # dot locations
-        if rot:
-            dd = .5*self.spacing/np.sqrt(2)
-            X = [x+dx for dx in [-dd, 0, dd, 0]]
-            Y = [y+dy for dy in [0, -dd, 0, dd]]
-        else:
-            dd = .25*self.spacing
-            X = [x+dx for dx in [dd, dd, -dd, -dd]]
-            Y = [y+dy for dy in [-dd, dd, dd, -dd]]
-        Q = [.5+dq for dq in [pol, -pol, pol, -pol]]
+        head = None
+        try:
+            with open(fname, 'r') as fp:
+                head = ParserNode(fp, 'root')
+        except Exception as e:
+            print('Failed to parse QCADesigner file with error:\n\t{0}'.format(e.message))
+            head=None
+        return head
 
-    @classmethod
-    def fromParserNode(cls, n, node):
-        '''Construct a new QCACell with the given label from a ParserNode'''
-
-        # cell position from the cell's design object
-        cell_obj = node.getChild(_tags['cell_obj'])
-        if cell_obj is None:
-            return None
-        x,y = [float(cell_obj[k]) for k in 'xy']
-
-        # cell parameters
-        cf = _QCAD_CFs[node[_vals['cf']]]
-
-        # quantum dot locations
-        dots = node.extractAllNested(_tags['dot'])
-        assert len(dots)==4, 'Invalid dot layout'
-        dots = [cls.QCADot(float(d['x']), float(d['y']), float(d['charge'])/cls.Q0) for d in dots]
-
-        pol = round((dots[0].q+dots[2].q-dots[1].q-dots[3].q)/2, 5)
-        rot = len(set(round(d.x, 2) for d in dots))==3
-
-        return QCACell(n, {}, 0, x, y, cf, pol, rot, dots)
-
-
-
+# QCACircuit structure
 
 class QCACircuit(Graph):
     '''General container for all relevant information about a QCA circuit.'''
 
-    CFs = QCACell.CFs
-    QCAD_CFs = {'QCAD_CELL_NORMAL': CFs['normal'],
-                'QCAD_CELL_INPUT':  CFs['input'],
-                'QCAD_CELL_OUTPUT': CFs['output'],
-                'QCAD_CELL_FIXED':  CFs['fixed']}
+    QCADot = namedtuple('QCADot', ['x', 'y', 'q'])
 
-    tags = {'design': 'TYPE:DESIGN',
-            'cell': 'TYPE:QCADCell',
-            'cell_obj': 'TYPE:QCADDesignObject',
-            'dot': 'TYPE:CELL_DOT'}
-
-    vals = {'cx': 'cell_options.cxCell',
-            'cy': 'cell_options.cyCell',
-            'cf': 'cell_function'}
-
+    CFs = _CFs          # make cell functions available through QCACircuit prefix
     R0 = 2              # maximum range of interaction in normalized units
-
+    Q0 = 1.60218e-19    # elementary charge
 
     def __init__(self, head=None, fname=None, verbose=False):
         '''Initialise a QCACircuit from an optional QCADesigner file parser'''
@@ -255,23 +181,23 @@ class QCACircuit(Graph):
                           'full':   self.__fullMask,
                           'lim':    self.__limMask}
 
-        self.cells = self.nodes     # dictionary of cells
-        self.order = []
+        self.cells = []         # ordered list through insertion
+        self.__cellkeys = []    # sorting keys for self.cells
+
+        # default cell value for sorting
+        self.metric = lambda c: (self.node[c]['y'], self.node[c]['x'])
 
         self.clists = {'normal': [], 'input': [], 'output': [], 'fixed': []}
 
         if fname is not None:
-            try:
-                head = parse(fname)
-            except:
-                print('Failed to parse QCA data from file: {0}'.format(fname))
-                head = None
+            head = ParserNode.parse(fname)
 
         # extract cell data from node structure
         if isinstance(head, ParserNode):
             self.__fromHead(head)
             self.vprint('Circuit information extracted from circuit parser')
         else:
+            self.spacing = 1.
             self.vprint('No valid parser data found')
 
 
@@ -309,25 +235,30 @@ class QCACircuit(Graph):
 
         dots = self.__toDots(x, y, rot, pol)
 
-        n = len(self.cells)
-        self.cells[n] = QCACell(n, {}, 0., x, y, cf, pol, rot, dots)
+        self.__addCell(x, y, cf, pol, rot, dots)
 
     def computeCoefs(self, adj=None, pn=None, gam=None):
         '''compute the normalized coefficients for the current QCACircuit under
-        the given adjacency type and input cell polarization index'''
+        the given adjacency type and input cell polarization index
+
+        inputs:
+            adj : adjacency type
+            pn  : polarization index := binary polarization flag
+            gam : transverse field
+        '''
+
+        from pprint import pprint
 
         assert adj in self.adj_masks, 'Invalid adjacency type'
 
-        if len(self.cells)==0:
+        if len(self)==0:
             if gam is None:
                 return np.zeros(0), np.zeros([0,0])
             else:
                 return np.zeros(0), np.zeros([0,0]), np.zeros(0)
 
-        # get the kink energies for all cell interactions
-        J = np.zeros([len(self.cells),]*2, dtype=float)
-        for i,j in combinations(range(J.shape[0]),2):
-            J[i,j]=J[j,i] = -self.computeEk(self.cells[i], self.cells[j])
+        # convert all edges to ordered adjacency array
+        J = np.asarray(to_numpy_matrix(self, nodelist=self.cells, dtype=float))
         J /= np.max(np.abs(J))
 
         # enforce adjacency
@@ -335,14 +266,14 @@ class QCACircuit(Graph):
 
         # only want normal and output cell coefficients
         inds = [i for i,c in enumerate(self.cells)
-                    if c.cf in [self.CFs['normal'], self.CFs['output']]]
+                    if self.node[c]['cf'] in [_CFs['normal'], _CFs['output']]]
         J = J[inds,:]
 
         # biases
         self.process()  # don't feel like being clever
 
         # input cell polarizations
-        pols = np.zeros([len(self.cells),], dtype=float)
+        pols = np.zeros([len(self),], dtype=float)
         for i in self.clists['fixed']:
             pols[i] = self.cells[i].pol
         if isinstance(pn, int):
@@ -362,9 +293,9 @@ class QCACircuit(Graph):
         '''Process useful parameters from the QCACircuit'''
 
         self.clists = {'normal': [], 'input': [], 'output': [], 'fixed': []}
-        cfmap = {n:k for k,n in self.CFs.items()}
-        for i, cell in self.cells.items():
-            self.clists[cfmap[cell.cf]].append(i)
+        cfmap = {n:k for k,n in _CFs.items()}
+        for i, cell in enumerate(self.cells):
+            self.clists[cfmap[self.node[cell]['cf']]].append(i)
 
         self.vprint(pformat(self.clists))
 
@@ -374,34 +305,17 @@ class QCACircuit(Graph):
 
         # default metric
         if metric is None:
-            metric = lambda cell: (cell.y, cell.x)
+            metric = self.metric
+        elif isinstance(metric, 'function'):
+            try:
+                metric(self.cells[0])
+                self.metric = metric
+            except:
+                print('Metric failed test case')
+                return
 
-        self.cells.sort(key=metric)
-
-    def computeEk(self, c1, c2):
-        '''Compute the kink energy between two QCACells. Computation is only
-        up to a normalization constant.'''
-
-        # distance between cells
-        if pow(c2.x-c1.x,2)+pow(c2.y-c1.y,2) > pow(self.R0*self.spacing,2):
-            return 0
-
-        # 4x4 matrix of distances between dots in either cell
-        x1, y1 = zip(*[(d.x, d.y) for d in c1.dots])
-        x2, y2 = zip(*[(d.x, d.y) for d in c2.dots])
-        X1 = np.array([x1,y1]).T.reshape([4,1,2])/self.spacing
-        X2 = np.array([x2,y2]).T.reshape([1,4,2])/self.spacing
-        R = np.sqrt(np.sum(pow(X1-X2,2), axis=2))
-
-        if np.min(R) == 0:
-            print('qdot overlap detected')
-            return 0
-
-        Q = np.array([1, -1, 1, -1])
-        Q = np.outer(Q,Q)
-        Ek = -np.sum(Q/R)
-
-        return Ek
+        self.cells.sort(key=self.metric)
+        self.__cellkeys = [self.metric(c) for c in self.cells]
 
     @staticmethod
     def intToPol(n, l):
@@ -417,37 +331,35 @@ class QCACircuit(Graph):
     def __fromHead(self, head):
         '''Load the QCACircuit from the head Node of a parsed QCADesigner file'''
 
-        design = head.getChild(self.tags['design'])
+        design = head.getChild(_TAGS['design'])
         assert design is not None, 'Invalid QCADesigner file format'
 
-        cell_nodes = head.extractAllNested(self.tags['cell'])
+        cell_nodes = head.extractAllNested(_TAGS['cell'])
         assert len(cell_nodes)>0, 'Empty QCADesigner file'
 
         # get cell-cell spacing
-        cx, cy = [float(cell_nodes[0][self.vals[k]]) for k in ['cx', 'cy']]
+        cx, cy = [float(cell_nodes[0][_VALS[k]]) for k in ['cx', 'cy']]
         self.spacing = np.sqrt(cx*cy)
 
         # extract cell content
         for node in cell_nodes:
-            cell = self.__nodeToCell(node)
-            if cell:
-                self.cells.append(cell)
+            self.__addFromNode(node)
 
-    def __nodeToCell(self, node):
-        '''Extract the relevant parameters from a ParserNode describing a
-        QCACell'''
+    def __addFromNode(self, node):
+        '''Extract cell parameters from a ParserNode describing a QCACell and
+        add the cell to the QCACircuit'''
 
         # cell position from the cell's design object
-        cell_obj = node.getChild(self.tags['cell_obj'])
+        cell_obj = node.getChild(_TAGS['cell_obj'])
         if cell_obj is None:
             return None
         x, y = [float(cell_obj[k]) for k in ['x', 'y']]
 
         # cell parameters
-        cf = self.QCAD_CFs[node[self.vals['cf']]]
+        cf = _QCAD_CFs[node[_VALS['cf']]]
 
         # quantum dot locations
-        dots = node.extractAllNested(self.tags['dot'])
+        dots = node.extractAllNested(_TAGS['dot'])
         assert len(dots)==4, 'Invalid dot layout'
 
         dots = [self.QCADot(float(d['x']), float(d['y']), float(d['charge'])/self.Q0) for d in dots]
@@ -455,7 +367,21 @@ class QCACircuit(Graph):
         pol = round((dots[0].q+dots[2].q-dots[1].q-dots[3].q)/2, 5)
         rot = len(set(round(d.x, 2) for d in dots))==3
 
-        return QCACell(x, y, cf, pol, rot, dots)
+        self.__addCell(x, y, cf, pol, rot, dots)
+
+    def __addCell(self, x, y, cf, pol, rot, dots):
+        '''handler for adding a new cell to the circuit'''
+
+        n = len(self)
+        self.add_node(n, weight=0, x=x, y=y, cf=cf, pol=pol, rot=rot, dots=dots)
+
+        # add the interactions (edges)
+        for m in self.cells:
+            Ek = self.__computeEk(m, n)
+            if Ek:
+                self.add_edge(n, m, weight=-Ek)
+
+        self.__insort(n)
 
     def __toDots(self, x, y, rot, pol):
         '''Compute suitable dots for the given QCACell parameters'''
@@ -472,6 +398,45 @@ class QCACircuit(Graph):
         Q = [.5+dq for dq in [pol, -pol, pol, -pol]]
 
         return [self.QCADot(x, y, q) for x,y,q in zip(X,Y,Q)]
+
+    def __computeEk(self, k1, k2):
+        '''Compute the kink energy between two QCACells. Computation is only
+        up to a normalization constant.'''
+
+        c1, c2 = [self.node[k] for k in [k1,k2]]
+
+        # distance between cells
+        if pow(c2['x']-c1['x'],2)+pow(c2['y']-c1['y'],2) > pow(self.R0*self.spacing,2):
+            return 0
+
+        # 4x4 matrix of distances between dots in either cell
+        x1, y1 = zip(*[(d.x, d.y) for d in c1['dots']])
+        x2, y2 = zip(*[(d.x, d.y) for d in c2['dots']])
+        X1 = np.array([x1,y1]).T.reshape([4,1,2])/self.spacing
+        X2 = np.array([x2,y2]).T.reshape([1,4,2])/self.spacing
+        R = np.sqrt(np.sum(pow(X1-X2,2), axis=2))
+
+        if np.min(R) == 0:
+            print('qdot overlap detected')
+            return 0
+
+        Q = np.array([1, -1, 1, -1])
+        Q = np.outer(Q,Q)
+        Ek = -np.sum(Q/R)
+
+        return Ek
+
+    def __insort(self, k):
+        '''Insert node k into the sorted list of cells'''
+
+        assert k in self, 'Invalid cell name'
+        cell = self.node[k]
+
+        key = self.metric(k)                        # sorting key
+        ind = bisect.bisect(self.__cellkeys, key)   # insert location
+
+        self.cells.insert(ind, k)
+        self.__cellkeys.insert(ind, key)
 
 
     # adjacency masks
@@ -507,30 +472,32 @@ class QCACircuit(Graph):
 
         '''
 
-        X = np.array([c.x for c in self.cells]).reshape([-1,1])
-        Y = np.array([c.y for c in self.cells]).reshape([-1,1])
+        X = np.array([self.node[c]['x'] for c in self.cells]).reshape([-1,1])
+        Y = np.array([self.node[c]['y'] for c in self.cells]).reshape([-1,1])
 
         DX = np.abs(X.T-X)/self.spacing
         DY = np.abs(Y.T-Y)/self.spacing
 
         # cell interaction matrix
         A = np.zeros(DX.shape, dtype=int)
-        zeq = lambda x,y : abs(x-y)<0.2     # approximate equality
+        zeq = lambda x,y : abs(x-y)<0.2     # approximate equality: |x-y| < 0.2
 
         for i,j in combinations(range(A.shape[0]),2):
+            c1, c2 = [self.node[self.cells[k]] for k in [i,j]]
             dx, dy = DX[i,j], DY[i,j]
-            if zeq(min(dx,dy), .5) and zeq(max(dx,dy), 1): A[i,j] = 3
-            elif self.cells[i].rot != self.cells[j].rot: continue
-            elif zeq(dx+dy, 1): A[i,j] = 1
-            elif zeq(dx, 1) and zeq(dy, 1): A[i,j] = -1
-            elif zeq(min(dx,dy),0) and zeq(max(dx,dy),2): A[i,j] = 2
-            elif zeq(min(dx,dy),1) and zeq(max(dx,dy),2): A[i,j] = -2
+            if zeq(min(dx,dy), .5) and zeq(max(dx,dy), 1):  A[i,j] = 3
+            elif c1['rot'] != c2['rot']:                    A[i,j] = 0
+            elif zeq(dx+dy, 1):                             A[i,j] = 1
+            elif zeq(dx, 1) and zeq(dy, 1):                 A[i,j] = -1
+            elif zeq(min(dx,dy),0) and zeq(max(dx,dy),2):   A[i,j] = 2
+            elif zeq(min(dx,dy),1) and zeq(max(dx,dy),2):   A[i,j] = -2
         return A + A.T
 
     def __maskFill(self, crit=lambda i,j:True):
-        '''Generate the mask using a defined criterion, crit return True/False'''
+        '''Generate the mask using a defined criterion. The mask is a 2D array
+        the same size as J with True wherever crit evaluates to nonzero'''
 
-        N = len(self.cells)
+        N = len(self)
         M = np.ones([N,N], dtype=bool)
 
         for i,j in combinations(range(N), 2):
@@ -566,15 +533,34 @@ class QCACircuit(Graph):
 
     def echoCells(self, dots=False):
         for cell in self.cells:
-            self.echoCell(cell, dots=dots)
+            self.echoCell(self.node[cell], dots=dots)
 
     @classmethod
     def echoCell(cls, cell, dots=False):
-        assert isinstance(cell, cls.QCACell)
         cfmap = {k:i for i,k in cls.CFs.items()}
-        print('Cell:  x:{0:>6.2f}  ::  y:{1:>6.2f} \t {2:<10} pol:{3:>6.2f} \t rot:{4}'.format(cell.x, cell.y, cfmap[cell.cf], cell.pol, cell.rot))
+        print('Cell:  x:{0:>6.2f}  ::  y:{1:>6.2f} \t {2:<10} pol:{3:>6.2f} \t rot:{4}'.format(
+                    cell['x'], cell['y'], cfmap[cell['cf']], cell['pol'], cell['rot']))
         if dots:
             print('Dots: ')
-            for d in cell.dots:
+            for d in cell['dots']:
                 print('       x:{0:>6.2f}  ::  y:{1:>6.2f} \t charge:{2:>4.1f}'.format(d.x, d.y, d.q))
             print('\n')
+
+
+if __name__ == '__main__':
+
+    import sys
+    from pprint import pprint
+
+    try:
+        fn = sys.argv[1]
+    except:
+        print('missing QCADesigner file')
+        sys.exit()
+
+    circuit = QCACircuit(fname=fn, verbose=True)
+
+    h, J = circuit.computeCoefs(adj='full', pn=1)
+
+    pprint(h)
+    pprint(J)
