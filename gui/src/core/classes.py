@@ -37,7 +37,7 @@ except Exception as e:
     print (traceback.print_exc())
 
 try:
-    from dwave_sapi import find_embedding
+    from dwave_sapi2.embedding import find_embedding
 except Exception as e:
     print('Could not load heuristic embedding method...')
     embedders['heur'] = False
@@ -151,10 +151,10 @@ class Embedding:
 
     def run_layout_embedding(self):
         '''Setup and run the Layout-Aware Placement algorithm'''
-        
+
         # update embedding type in case direct call
         self.embed_method = 'layout'
-        
+
         stats = {}
         configuration = {}
         configuration['M'] = self.M
@@ -164,7 +164,7 @@ class Embedding:
         layoutConfiguration(configuration)
 
         active_cells, qca_adj = self.get_reduced_qca_adj()
-        
+
         try:
             setProblem(qca_adj, self.cells, self.spacing)
             setTarget(self.chimera_adj)
@@ -178,7 +178,7 @@ class Embedding:
             print('Layout-Aware Embedding Failed')
             print (traceback.print_exc())
             return
-        
+
         self.models = layoutToModels(cell_map)
 
     def run_heur_embedding(self, full_adj=True):
@@ -191,17 +191,15 @@ class Embedding:
         S_size = len(qca_adj)
         A_size = len(self.chimera_adj)
 
-        # construct S
-        S = {}
-        for i in range(S_size):
-            c1 = active_cells[i]
-            for j in range(S_size):
-                c2 = active_cells[j]
-                v = 1 if c2 in qca_adj[c1] else 0
-                S[(i, j)] = v
-                S[(j, i)] = v
+        # construct S, the problem adjacency edge list
+        S = set()
+        smap = {c:i for i,c in enumerate(active_cells)}
+        for c1, adj in qca_adj.items():
+            for c2 in adj:
+                if c1<c2:
+                    S.add((smap[c1],smap[c2]))
 
-        # construct A
+        # construct A, the chimera adjacency edge list
         A = set()
         for qb1 in self.chimera_adj:
             for qb2 in self.chimera_adj[qb1]:
@@ -211,7 +209,8 @@ class Embedding:
 
         try:
             print 'Running heuristic embedding'
-            models = find_embedding(S, S_size, A, A_size)
+            #models = find_embedding(S, S_size, A, A_size)
+            models = find_embedding(S, A)
         except Exception as e:
             print(e.message())
 
@@ -221,8 +220,9 @@ class Embedding:
         # map models to standard format
         mapper = lambda ind: linear_to_tuple(ind, self.M, self.N,
                                              L=self.L, index0=True)
-        self.models = {active_cells[i]: [mapper(c) for c in models[i]]
-            for i in xrange(S_size)}
+        self.models = {active_cells[i]: [mapper(c) for c in model]
+            for i,model in enumerate(models)}
+
 
     # PARAMETER ACCESS
 
@@ -267,8 +267,8 @@ class Embedding:
 
         # coupler weights
         self.J = J
-        
-        # QCA layout spacing 
+
+        # QCA layout spacing
         self.spacing = spacing
 
 
