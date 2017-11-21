@@ -6,6 +6,7 @@ Created on Jan 23, 2017
 
 import os
 import sys
+import json
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ M = 12
 L = 4
 
 # Problem and Dimensions
-QCa = None
+QCA = None
 X = 0
 Y = 0
 W = 1000
@@ -74,7 +75,7 @@ def partitionScale(QCA):
     
     # Cell container for each tile/region
     num_regions = num_regions_x*num_regions_y
-    bins = {key : [] for key in range( 0,  num_regions)}
+    bins = {key : [] for key in xrange( 0,  num_regions)}
     
     # Size of a region
     qca_w_scale = W / float(num_regions_x)
@@ -83,7 +84,7 @@ def partitionScale(QCA):
     # Assign partitions and scale to chimera size
     for node in QCA:
         # Cell data from graph
-        cell = QCA.node[node]['cell']
+        cell = QCA.nodes[node]['cell']
         
         # Scale
         scaled_x = (cell['x'] - X) / qca_w_scale
@@ -121,12 +122,12 @@ def getSupply(Chimera):
     
     supply = {}
     
-    for m in range(M):
-        for n in range(N):
+    for m in xrange(M):
+        for n in xrange(N):
             tile = n + N*m
             supply[tile] = []
-            for h in range(2):
-                for i in range(L):
+            for h in xrange(2):
+                for i in xrange(L):
                     qubit_tuple = (m,n,h,i)
                     if qubit_tuple in Chimera:
                         if Chimera.neighbors(qubit_tuple):
@@ -147,7 +148,7 @@ def defaultConf ():
     DEFAULT_CONF['VERBOSE'] = False
     DEFAULT_CONF['WRITELP'] = False
     
-    DEFAULT_CONF['SEED'] =                              8
+    DEFAULT_CONF['SEED'] =                              None
     
     DEFAULT_CONF['D_MAX'] =                             8.0
     DEFAULT_CONF['MAX_DEG'] =                           6.0
@@ -194,6 +195,12 @@ def layoutConfiguration(conf, test_conf={}):
     conf.update(TEMP_CONF)
 
 def setProblem(problem_adj, nodes_loc, spacing):
+    '''
+    Create graph from adjacency and attributes of input problem.
+    :param problem_adj: Adjacency dictionary
+    :param node_loc: Attribute dictionary including 'x' and 'y' node location attributes.
+    :param spacing: Diameter or size of input problem node
+    '''
     
     global QCA
     global X, Y, W, H
@@ -211,8 +218,8 @@ def setProblem(problem_adj, nodes_loc, spacing):
         cell_y = nodes_loc[cell].y
         degree =  len(problem_adj[cell])
         
-        attr_dict = {'cell': {'x' : cell_x, 'y' : cell_y, 'degree' : degree}}
-        QCA.add_node(cell,attr_dict=attr_dict)
+        cell_dict = {'x' : cell_x, 'y' : cell_y, 'degree' : degree}
+        QCA.add_node(cell,cell=cell_dict)
         
         edges_in    = [(cell,neigh) for neigh in problem_adj[cell]]
         edges_out   = [(neigh,cell) for neigh in problem_adj[cell]]
@@ -236,6 +243,10 @@ def setProblem(problem_adj, nodes_loc, spacing):
     H = qca_h2-qca_h1+(spacing)
     
 def setTarget(chimera_adj):
+    '''
+    Create the target graph for minor-embedding.
+    :param chimera_adj: Adjacenecy matrix of Chimera graph. TODO: Use DWave_networkx
+    '''
     
     global Chimera
     
@@ -244,7 +255,10 @@ def setTarget(chimera_adj):
     
 
 def parseConfiguration(configuration):
+    '''
     
+    :param configuration: Configuration dictionary for embedding algorithm
+    '''
     
     global M, N, L
      
@@ -261,12 +275,33 @@ def parseConfiguration(configuration):
     CIRCUIT = configuration['CIRCUIT']
     DIFFUSION = configuration['diffusion']['ENABLE']
     
+def save_problem_file(filename, problem_adj, node_loc):
+    '''
+    Store problem adjacency and attributes in JSON format
+    :param filename: JSON file to store input problem
+    :param problem_adj: Adjacency dictionary
+    :param node_loc: Attribute dictionary including 'x' and 'y' node location attributes.
+    '''
     
+    with open(filename, 'a') as data_file:
+        
+        node_loc_dict = {}
+        for node in node_loc:
+            node_x = node_loc[node].x
+            node_y = node_loc[node].y
+            node_dict = {'x':node_x, 'y':node_y}
+            node_loc_dict[node] = node_dict 
+            
+
+        json.dump(problem_adj, data_file)
+        data_file.write('\n')
+        json.dump(node_loc_dict, data_file)    
 
 def layoutEmbed(configuration, stats):
     '''
-    :param configuration: Layout embedding configuration 
-    :param chimera_adj: Adjacency matrix of the chimera graph
+    Layout-aware embedding 
+    :param configuration: Input layout embedding configuration dictionary 
+    :param stats: Output statistics dictionary of embedding attempt
     '''
         
     parseConfiguration(configuration)

@@ -9,19 +9,68 @@ Created on Oct 24, 2017
 import sys
 import json
 import traceback
+import numpy as np
 from embed import layoutEmbed, layoutToModels
 from embed import layoutConfiguration, setProblem, setTarget
+from warnings import catch_warnings
 
 M = 8
 N = 8
 L = 4
 SPACING = 18.0 
 
+class JSONDecoder(json.JSONDecoder):
+    '''
+    Decode JSON strings into components
+    '''
+    def decode(self, s):
+        result = super(JSONDecoder, self).decode(s)
+        return self._decode(result)
+
+    def _decode(self, o):
+        if isinstance(o, str) or isinstance(o, unicode):
+            try:
+                return int(o)
+            except ValueError:
+                return o
+        elif isinstance(o, dict):
+            return {self._decode(k): self._decode(v) for k, v in o.items()}
+        elif isinstance(o, list):
+            return [self._decode(v) for v in o]
+        else:
+            return o
+
+class Node():
+    def __init__(self,x=0,y=0):
+        self.x = x
+        self.y = y
+
 
 def load_problem_file(filename, spacing):
+    '''
+    Reads in input problem description
+    
+    :param filename: JSON input problem file with adjacency dictionary and attributes dictionary
+        {<node>:<neighbors>}
+        {<node>:{'x':X, 'y':Y, ...}} 
+    :param spacing: Diameter or size of input problem node
+    :returns problem_adj: Adjacency dictionary
+    :returns node_loc: Attribute dictionary including 'x' and 'y' node location attributes.
+    '''
 
-    with open(filename, 'r') as data_file:    
-        problem_adj, node_loc = (json.loads(line) for line in data_file)
+    try:
+        with open(filename, 'r') as data_file:    
+            problem_adj, node_dict = (json.loads(line,cls=JSONDecoder) for line in data_file)
+    except:
+        print('Failed to open file: {0}'.format(filename))
+        raise IOError
+    
+    node_loc = {}
+    for node in node_dict:
+        node_x = int(node_dict[node]['x'])
+        node_y = int(node_dict[node]['y'])
+        node_obj = Node(node_x,node_y)
+        node_loc[node] = node_obj
         
     return problem_adj, node_loc
         
@@ -54,7 +103,7 @@ def load_chimera_file(filename):
     
     # Get dimensions of tiles
     # Allows nxm, n!=m for testing
-    M, N = [int(x) for x in fp.readline().split()]
+    #M, N = [int(x) for x in fp.readline().split()]
     
     adj = {i: [] for i in xrange(1, num_qbits+1)}
                     
@@ -65,8 +114,8 @@ def load_chimera_file(filename):
     
     # Processor size
     # LEGACY: only allows m*m processors.
-    #M = int(np.sqrt(num_qbits/(2*L)))
-    #N = M
+    M = int(np.sqrt(num_qbits/(2*L)))
+    N = M
     
     adj_tup = {linear_to_tuple(k,N,M):\
             [linear_to_tuple(v,N,M) for v in adj[k]] for k in adj}
@@ -77,40 +126,42 @@ def load_chimera_file(filename):
 
 
 def main():
-        '''Setup and run the Layout-Aware Placement algorithm'''
-        global M,N,L
-        global X,Y,W,H 
-    
-    
+    '''Setup and run the Layout-Aware Placement algorithm'''
+    global M,N,L
+    global X,Y,W,H 
+
+    if len( sys.argv) == 3:
         problem_file = sys.argv[1]
         chimera_file = sys.argv[2]
+    else:
+        raise ValueError("main.py <problem_file> <chimera_file>")
 
-        problem_adj, node_loc =  load_problem_file(problem_file, SPACING)
-        M, N, chimera_adj = load_chimera_file(chimera_file)
-        
-        stats = {}
-        configuration = {}
-        configuration['M'] = M
-        configuration['N'] = N
-        configuration['L'] = L
-        configuration['CIRCUIT'] = 'problem'
-        layoutConfiguration(configuration)
-        
-        try:
-            setProblem(problem_adj, node_loc, SPACING)
-            setTarget(chimera_adj)
-            good, cell_map = layoutEmbed(configuration, stats)
-            if good:
-                print('Layout-Aware Embedding Successful')
-        except Exception as e:
-            good = False
-            if type(e).__name__ == 'KeyboardInterrupt':
-                raise KeyboardInterrupt
-            print('Layout-Aware Embedding Failed')
-            print (traceback.print_exc())
-            return
-        
-        print( layoutToModels(cell_map, configuration) ) 
+    problem_adj, node_loc =  load_problem_file(problem_file, SPACING)
+    M, N, chimera_adj = load_chimera_file(chimera_file)
+    
+    stats = {}
+    configuration = {}
+    configuration['M'] = M
+    configuration['N'] = N
+    configuration['L'] = L
+    configuration['CIRCUIT'] = 'problem'
+    layoutConfiguration(configuration)
+    
+    try:
+        setProblem(problem_adj, node_loc, SPACING)
+        setTarget(chimera_adj)
+        good, cell_map = layoutEmbed(configuration, stats)
+        if good:
+            print('Layout-Aware Embedding Successful')
+    except Exception as e:
+        good = False
+        if type(e).__name__ == 'KeyboardInterrupt':
+            raise KeyboardInterrupt
+        print('Layout-Aware Embedding Failed')
+        print (traceback.print_exc())
+        return
+    
+    print( layoutToModels(cell_map) ) 
 
 if __name__ == '__main__':
     main()

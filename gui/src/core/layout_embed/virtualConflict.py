@@ -28,9 +28,9 @@ def parseSystem():
     for cell in _QCA:
         fixed[cell] = 0
         shared[cell] = set()
-        cell_qubits = _QCA.node[cell]['qubits'] 
+        cell_qubits = _QCA.nodes[cell]['qubits'] 
         for qubit in cell_qubits:
-            qubit_shared = len(_RGraph.node[qubit]['cells']) > 1
+            qubit_shared = len(_RGraph.nodes[qubit]['cells']) > 1
             if(not qubit_shared):
                 fixed[cell] = fixed[cell] + 1 
 
@@ -38,13 +38,12 @@ def parseSystem():
     chains = {}
     chain_lengths = {}
     
-    for u,v in _QCA.edges_iter():
-        edge = (u,v)
+    for edge in _QCA.edges():
         chains[edge] = []
         chain_lengths[edge] = 0
         
-        for qubit in _QCA.edge[u][v]['path']:
-            qubit_shared = len(_RGraph.node[qubit]['cells']) > 1 
+        for qubit in _QCA.edges[edge]['path']:
+            qubit_shared = len(_RGraph.nodes[qubit]['cells']) > 1 
             if(qubit_shared):
                 chains[edge].append(qubit)
                 chain_lengths[edge] = chain_lengths[edge] + 1
@@ -137,16 +136,16 @@ def assignQubits(LpSolution, var_map):
         # other nodes belong to target
         
         joined = 0        
-        for qubit in _QCA.edge[cell_S][cell_T]['path']:
-            qubit_shared = len(_RGraph.node[qubit]['cells']) > 1
+        for qubit in _QCA.edges[cell_S,cell_T]['path']:
+            qubit_shared = len(_RGraph.nodes[qubit]['cells']) > 1
             if (qubit_shared):
                 if (joined < limit_S):
-                    _QCA.node[cell_T]['qubits'].discard(qubit)
-                    _RGraph.node[qubit]['cells'].discard(cell_T)
+                    _QCA.nodes[cell_T]['qubits'].discard(qubit)
+                    _RGraph.nodes[qubit]['cells'].discard(cell_T)
                     joined = joined + 1
                 else:
-                    _QCA.node[cell_S]['qubits'].discard(qubit)
-                    _RGraph.node[qubit]['cells'].discard(cell_S)
+                    _QCA.nodes[cell_S]['qubits'].discard(qubit)
+                    _RGraph.nodes[qubit]['cells'].discard(cell_S)
 
 
 def parseConfiguration(configuration):
@@ -189,10 +188,7 @@ def solveChains(RGraph, QCA, configuration):
         if WRITE:
             prob.writeLP("SHARING.lp")       
         
-        if VERBOSE:
-            prob.solve(solver=pulp.GLPK_CMD())
-        else:
-            prob.solve(solver=pulp.GLPK_CMD(msg=False))
+        prob.solve(solver=pulp.GLPK_CMD(msg=VERBOSE))
         
         # read solution
         LpSolution = {}

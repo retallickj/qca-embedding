@@ -37,7 +37,7 @@ _supply = None
 def plotLocations(iteration):
     pos = {}
     for c in _QCA:
-        cell = _QCA.node[c]['cell']
+        cell = _QCA.nodes[c]['cell']
         pos[c] = (cell['x'] , cell['y'])
     plt.figure(0)
     plt.clf()
@@ -62,7 +62,7 @@ def partition(iteration):
     global _concentration
     
     
-    regions = range( 0, N*M )
+    regions = xrange( 0, N*M )
     
     # Plot QCA Graph   
     if PLOT or WRITE: plotLocations(iteration)
@@ -72,13 +72,13 @@ def partition(iteration):
 
     overpopulated = False
     for node in _QCA:
-        cell = _QCA.node[node]['cell']
+        cell = _QCA.nodes[node]['cell']
         
         # assign cell to region
         cell_tile_x = int(floor(cell['x'] ))
         cell_tile_y = int(floor(cell['y'] ))
         tile = cell_tile_x + cell_tile_y*N
-        _QCA.node[node]['tile'] = tile
+        _QCA.nodes[node]['tile'] = tile
         _bins[tile].append(node)
         C_tile = (concentration[tile] + 1.0)
         concentration[tile] =  C_tile
@@ -97,8 +97,8 @@ def printConcentration():
     
     print('##################CONCENTRATION')
     i=0
-    for k in range(M):
-        for j in range(N):
+    for k in xrange(M):
+        for j in xrange(N):
             
             print "%.1f  " % _concentration[i],
             i = i + 1
@@ -120,9 +120,9 @@ def measureDispersion():
     center_y = M/2.0
      
     for node in _QCA:
-        x1 = _QCA.node[node]['cell']['x']
+        x1 = _QCA.nodes[node]['cell']['x']
         
-        y1 = _QCA.node[node]['cell']['y']
+        y1 = _QCA.nodes[node]['cell']['y']
  
         dist_accum = dist_accum + pow(x1-center_x,2) + pow(y1-center_y,2)
         
@@ -145,10 +145,10 @@ def measureSparsity():
     dist_accum = 0
      
     for edge in _QCA.edges():
-        x1 = _QCA.node[edge[0]]['cell']['x']
-        x2 = _QCA.node[edge[1]]['cell']['x']
-        y1 = _QCA.node[edge[0]]['cell']['y']
-        y2 = _QCA.node[edge[1]]['cell']['y']
+        x1 = _QCA.nodes[edge[0]]['cell']['x']
+        x2 = _QCA.nodes[edge[1]]['cell']['x']
+        y1 = _QCA.nodes[edge[0]]['cell']['y']
+        y2 = _QCA.nodes[edge[1]]['cell']['y']
  
         dist_accum = dist_accum + pow(x1-x2,2) + pow(y1-y2,2)
         
@@ -214,7 +214,7 @@ def layoutCost():
 def velocityVectors(D):
     V = {}
     num_tiles = N*M
-    for tile in range(num_tiles):
+    for tile in xrange(num_tiles):
 
         # Tile concentration
         C_tile   = _concentration[tile]
@@ -287,8 +287,8 @@ def getAttractors(tile, n,m):
 
 def moveCells(D):
     
-    for m in range(M):
-        for n in range(N):
+    for m in xrange(M):
+        for n in xrange(N):
             
             tile = n + m*N 
             cells =  _bins[tile]
@@ -308,8 +308,8 @@ def moveCells(D):
                 
                 N_y = - ( ( C_LIM / S_MAX ) - ( D_attr_y + (D_attr_xy/2.0) ) ) / (2.0*D_tile)
     
-                c_x = _QCA.node[cell]['cell']['x']
-                c_y = _QCA.node[cell]['cell']['y']
+                c_x = _QCA.nodes[cell]['cell']['x']
+                c_y = _QCA.nodes[cell]['cell']['y']
                 
                 lx_cell = ((2.0 * c_x) / N ) - 1
                 ly_cell = ((2.0 * c_y) / M ) - 1
@@ -348,8 +348,8 @@ def moveCells(D):
                 c_y = min(c_y,float(M)-0.0001)
                 c_y = max(0,c_y)
                 
-                _QCA.node[cell]['cell']['x'] = c_x
-                _QCA.node[cell]['cell']['y'] = c_y
+                _QCA.nodes[cell]['cell']['x'] = c_x
+                _QCA.nodes[cell]['cell']['y'] = c_y
             
             # Reset cells in bin until next partition
             _bins[tile][:] = []
@@ -365,7 +365,7 @@ def getDensities():
     occupancy = 0
     num_tiles = N*M
     
-    for tile in range(num_tiles):
+    for tile in xrange(num_tiles):
         
         C_tile = _concentration[tile]
         S_tile = _supply[tile]

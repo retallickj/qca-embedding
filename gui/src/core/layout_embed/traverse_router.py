@@ -60,24 +60,24 @@ def ripUpAll():
     ##########################
 
     # Initialize edges to be routed
-    for u,v in _QCA.edges_iter():
-        _QCA.edge[u][v]['routed'] = False
-        _QCA.edge[u][v]['path'] = []
+    for u,v in _QCA.edges():
+        _QCA.edges[u,v]['routed'] = False
+        _QCA.edges[u,v]['path'] = []
     
     # Initialize node to be searched
     for node in _QCA:
-        _QCA.node[node]['main'] = None
-        _QCA.node[node]['qubits'].clear()
-        _QCA.node[node]['routed'] = False
+        _QCA.nodes[node]['main'] = None
+        _QCA.nodes[node]['qubits'].clear()
+        _QCA.nodes[node]['routed'] = False
         
     
     ##### Chimera Graph attributes
     ##############################
 
     for node in _Chimera:
-        _RGraph.node[node]['path'][:] = []
-        _RGraph.node[node]['cells'].clear()
-        _RGraph.node[node]['mapped'].clear()
+        _RGraph.nodes[node]['path'][:] = []
+        _RGraph.nodes[node]['cells'].clear()
+        _RGraph.nodes[node]['mapped'].clear()
 
 def confChimeraGraph():
     '''
@@ -94,25 +94,25 @@ def confChimeraGraph():
     for node in _Chimera:
         
         # initialize empty set of cells assigned to qubit
-        _Chimera.node[node]['cells'] = set()
+        _Chimera.nodes[node]['cells'] = set()
         # initialize empty list of paths assigned to qubit
-        _Chimera.node[node]['path'] = []
+        _Chimera.nodes[node]['path'] = []
         # initialize empty dictionary of paths:set([cells])
-        _Chimera.node[node]['mapped'] = {}
+        _Chimera.nodes[node]['mapped'] = {}
                 
         # assign qubit tile from tuple(row,col,horiz,ind)
         row = node[0]
         col = node[1]
-        _Chimera.node[node]['tile'] = (row, col)
+        _Chimera.nodes[node]['tile'] = (row, col)
 
         # relabel _Chimera nodes de Q<i>
         #labels[node] = 'Q' + str(tuple_to_linear(node,M,N)) 
         
         # NEGOTIATED CONGESTION    
         # historical cost
-        _Chimera.node[node]['history'] = 1.0
+        _Chimera.nodes[node]['history'] = 1.0
         # Degree/2 (In directed graph)
-        _Chimera.node[node]['degree'] = _Chimera.degree(node)/2
+        _Chimera.nodes[node]['degree'] = _Chimera.degree(node)/2
         
     # relabel nodes Q<i> to avoid conflicts in routing graph F
     #nx.relabel.relabel_nodes(_Chimera,labels, copy=False)
@@ -129,27 +129,27 @@ def confQCAGraph():
     labels = {}
     for node in _QCA:
         # Initialize empty main qubits
-        _QCA.node[node]['main'] = None
+        _QCA.nodes[node]['main'] = None
         # Initialize empty embedding on all cells
-        _QCA.node[node]['qubits'] = set()
+        _QCA.nodes[node]['qubits'] = set()
         # Initialize cell as not routed
-        _QCA.node[node]['routed'] = False
+        _QCA.nodes[node]['routed'] = False
         # Initialize cell model size
-        _QCA.node[node]['size'] = 1
+        _QCA.nodes[node]['size'] = 1
         # Initialize cell degree to not recompute
-        degree = _QCA.degree(node)
-        _QCA.node[node]['degree'] = degree 
+        degree = _QCA.degree[node]
+        _QCA.nodes[node]['degree'] = degree 
         # Initialize cell for search
-        _QCA.node[node]['routed'] = False
+        _QCA.nodes[node]['routed'] = False
         # Initialize cell priority
-        _QCA.node[node]['priority'] = degree
+        _QCA.nodes[node]['priority'] = degree
                        
         # Relabel QCA nodes to C<i>
         label = 'C' + str(node)
         labels[node] = label
     
     # Initialize size of patha
-    nx.set_edge_attributes(_QCA, 'size', 0.0)
+    nx.set_edge_attributes(_QCA, 0.0, 'size')
     
     # relabel nodes C<i> to avoid conflicts in routing graph F
     nx.relabel_nodes(_QCA, labels, copy=False)
@@ -204,13 +204,13 @@ def getQubits(tile):
     tile_y = (tile-tile_x) / N
     
     qubits = []
-    for index in range(0,L):
+    for index in xrange(0,L):
         qubit_tuple_1 = (tile_y, tile_x, 0, index)
         qubit_tuple_2 = (tile_y, tile_x, 1, index)
         
-        if _RGraph.node[qubit_tuple_1]['alive']:
+        if _RGraph.nodes[qubit_tuple_1]['alive']:
             qubits.append(qubit_tuple_1)
-        if _RGraph.node[qubit_tuple_2]['alive']:
+        if _RGraph.nodes[qubit_tuple_2]['alive']:
             qubits.append(qubit_tuple_2)
             
     return qubits
@@ -222,7 +222,7 @@ def getCandidates(cell):
     :param cell:
     '''
     
-    tile = _QCA.node[cell]['tile']
+    tile = _QCA.nodes[cell]['tile']
     n_tile, s_tile, w_tile, e_tile,  nw_tile, ne_tile, se_tile, sw_tile = neighbourTiles(tile)
 
 
@@ -238,8 +238,8 @@ def getCandidates(cell):
     
     elif NEIGHBORHOOD=='block':
     
-        cell_x = _QCA.node[cell]['cell']['x']
-        cell_y = _QCA.node[cell]['cell']['y']
+        cell_x = _QCA.nodes[cell]['cell']['x']
+        cell_y = _QCA.nodes[cell]['cell']['y']
         tile_x = tile % N
         tile_y = (tile-tile_x) / N
         
@@ -277,12 +277,12 @@ def initSearch(source_cell):
     '''
     
     # initialize graph search
-    nx.set_node_attributes(_RGraph, 'cost', COST_THRESHOLD + 1)
-    nx.set_node_attributes(_RGraph, 'parent', None)
-    nx.set_node_attributes(_RGraph, 'visited', False)
+    nx.set_node_attributes(_RGraph, COST_THRESHOLD + 1, 'cost')
+    nx.set_node_attributes(_RGraph, None, 'parent')
+    nx.set_node_attributes(_RGraph, False, 'visited')
 
-    _RGraph.node[source_cell]['level'] = 0
-    _RGraph.node[source_cell]['cost'] = 0.0
+    _RGraph.nodes[source_cell]['level'] = 0
+    _RGraph.nodes[source_cell]['cost'] = 0.0
 
 def getCost(node, neighbor, source_cell, target_cell):
     '''
@@ -297,7 +297,7 @@ def getCost(node, neighbor, source_cell, target_cell):
     if (neighbor==target_cell):
         return 0.0
 
-    cells = _RGraph.node[neighbor]['cells']
+    cells = _RGraph.nodes[neighbor]['cells']
     # Qubit is assigned to target or source
     if (target_cell in cells):
         return 0.0
@@ -308,15 +308,15 @@ def getCost(node, neighbor, source_cell, target_cell):
     scope_cost = 0.0
     if target_cell:
         # Edge length cost
-        path_len = _QCA.edge[source_cell][target_cell]['size']
+        path_len = _QCA.edges[source_cell,target_cell]['size']
         edge_cost = path_len / _max_edge
         # Scope cost
-        node_tile = _RGraph.node[node]['tile']
-        neighbor_tile = _RGraph.node[neighbor]['tile']   
+        node_tile = _RGraph.nodes[node]['tile']
+        neighbor_tile = _RGraph.nodes[neighbor]['tile']   
         scope_cost = 0.0 if (node_tile==neighbor_tile) else BASE_B
     
     # Degree Cost
-    degree_q = _RGraph.node[neighbor]['degree']
+    degree_q = _RGraph.nodes[neighbor]['degree']
     degree_cost = (1 - (degree_q/MAX_DEG))
     
     # Base Cost (b_n)
@@ -324,13 +324,13 @@ def getCost(node, neighbor, source_cell, target_cell):
 
     # Present-sharing Cost (p_n)    
     embedding = set()
-    for path in _RGraph.node[neighbor]['path']:
-        embedding.add( tuple(_RGraph.node[neighbor]['mapped'][path]) )
+    for path in _RGraph.nodes[neighbor]['path']:
+        embedding.add( tuple(_RGraph.nodes[neighbor]['mapped'][path]) )
     k = len(embedding)
     sharing_cost = 1.0 + k * _alpha_p
 
     # History cost (h_n)    
-    history_cost = _RGraph.node[neighbor]['history']
+    history_cost = _RGraph.nodes[neighbor]['history']
     
     # Node Cost (c_n = b_n * h_n * p_n)
     node_cost =  base_cost * sharing_cost * history_cost
@@ -356,25 +356,25 @@ def BFS(source_cell, target_cell, queue):
         
         for neighbor in _RGraph.neighbors(node):
 
-            if not _RGraph.node[neighbor]['visited']:
+            if not _RGraph.nodes[neighbor]['visited']:
                 
                 # Calculate cost of using node in path
                 cost = getCost(node, neighbor, source_cell, target_cell)
                 
-                path_cost = _RGraph.node[node]['cost'] + cost
+                path_cost = _RGraph.nodes[node]['cost'] + cost
                 
-                if ( path_cost < _RGraph.node[neighbor]['cost'] ):
+                if ( path_cost < _RGraph.nodes[neighbor]['cost'] ):
                     # Assign cost to node 
-                    _RGraph.node[neighbor]['cost'] = path_cost
+                    _RGraph.nodes[neighbor]['cost'] = path_cost
                     # Set path parent of node
-                    _RGraph.node[neighbor]['parent'] = node
+                    _RGraph.nodes[neighbor]['parent'] = node
                     # Add to queue
                     queue.add(neighbor)
         
         # Set node as visited
-        _RGraph.node[node]['visited'] = True
+        _RGraph.nodes[node]['visited'] = True
         # Get min cost node
-        node = min(queue, key=lambda node: _RGraph.node[node]['cost'])
+        node = min(queue, key=lambda node: _RGraph.nodes[node]['cost'])
         # Remove node from queue 
         queue.remove(node)
         
@@ -388,10 +388,10 @@ def traceback(source_cell, target_cell):
     '''
     
     path = []
-    node = _RGraph.node[target_cell]['parent']
+    node = _RGraph.nodes[target_cell]['parent']
     while (node!=source_cell):
         path.insert(0, node)
-        node = _RGraph.node[node]['parent']
+        node = _RGraph.nodes[node]['parent']
     
     return path
           
@@ -409,54 +409,54 @@ def populateQubits(path, source_cell, target_cell):
     edge = tuple(sorted([source_cell,target_cell]))
 
     # Write path to QCA graph
-    _QCA.edge[source_cell][target_cell]['path'] = list(path)
-    _QCA.edge[target_cell][source_cell]['path'] = list(path)[::-1]
+    _QCA.edges[source_cell,target_cell]['path'] = list(path)
+    _QCA.edges[target_cell,source_cell]['path'] = list(path)[::-1]
     
     # Assign cells to main qubits
     source_main = path.pop(0)
     target_main = path.pop()
 
     # Add new edge to main qubit    
-    _RGraph.node[source_main]['path'].append(edge)
-    _RGraph.node[source_main]['mapped'][edge] = [source_cell]
+    _RGraph.nodes[source_main]['path'].append(edge)
+    _RGraph.nodes[source_main]['mapped'][edge] = [source_cell]
     
     # Embed target cell in target main     
-    _QCA.node[target_cell]['main']  =  target_main
-    _QCA.node[target_cell]['qubits'].add(target_main)
-    _RGraph.node[target_main]['path'].append(edge)
-    _RGraph.node[target_main]['mapped'][edge] = [target_cell]
-    _RGraph.node[target_main]['cells'].add(target_cell)
+    _QCA.nodes[target_cell]['main']  =  target_main
+    _QCA.nodes[target_cell]['qubits'].add(target_main)
+    _RGraph.nodes[target_main]['path'].append(edge)
+    _RGraph.nodes[target_main]['mapped'][edge] = [target_cell]
+    _RGraph.nodes[target_main]['cells'].add(target_cell)
     
     ###################################################################################
     # Embed cells in chain qubits
     for qubit in path:
         # Look through path mappings to find if source or target are in qubit
         path_cell = None
-        for pair in _RGraph.node[qubit]['path']:
+        for pair in _RGraph.nodes[qubit]['path']:
             # Determine which cell (if any) is in path 
-            mapping = set(_RGraph.node[qubit]['mapped'][pair])
+            mapping = set(_RGraph.nodes[qubit]['mapped'][pair])
             in_path = mapping.intersection(edge)
             
             # Modify qubit mapping according to cell in path
             if(in_path):
                 path_cell = in_path.pop()
                 remove_cell = [cell for cell in pair if cell!=path_cell][0]
-                _RGraph.node[qubit]['mapped'][pair] = [path_cell]
-                _RGraph.node[qubit]['mapped'][edge] = [path_cell]
-                _QCA.node[remove_cell]['qubits'].discard(qubit)
-                _RGraph.node[qubit]['cells'].discard(remove_cell)
+                _RGraph.nodes[qubit]['mapped'][pair] = [path_cell]
+                _RGraph.nodes[qubit]['mapped'][edge] = [path_cell]
+                _QCA.nodes[remove_cell]['qubits'].discard(qubit)
+                _RGraph.nodes[qubit]['cells'].discard(remove_cell)
                 break
         
         # Neither source or target cell were in qubit    
         if (not path_cell):
-            _RGraph.node[qubit]['mapped'][edge] = [source_cell, target_cell]
-            _RGraph.node[qubit]['cells'].add(source_cell)
-            _RGraph.node[qubit]['cells'].add(target_cell)
-            _QCA.node[source_cell]['qubits'].add(qubit)
-            _QCA.node[target_cell]['qubits'].add(qubit)
+            _RGraph.nodes[qubit]['mapped'][edge] = [source_cell, target_cell]
+            _RGraph.nodes[qubit]['cells'].add(source_cell)
+            _RGraph.nodes[qubit]['cells'].add(target_cell)
+            _QCA.nodes[source_cell]['qubits'].add(qubit)
+            _QCA.nodes[target_cell]['qubits'].add(qubit)
 
         # Add path to qubit            
-        _RGraph.node[qubit]['path'].append(edge)
+        _RGraph.nodes[qubit]['path'].append(edge)
     ###################################################################################
     
 def joinTargetCell(source_cell, target_cell, target_main):
@@ -471,7 +471,7 @@ def joinTargetCell(source_cell, target_cell, target_main):
     if not target_main:
         candidates = getCandidates(target_cell)
         for qubit in candidates:
-            if source_cell not in _RGraph.node[qubit]['cells']: 
+            if source_cell not in _RGraph.nodes[qubit]['cells']: 
                 _RGraph.add_edge(qubit, target_cell)
     else:
         _RGraph.add_edge(target_main, target_cell)
@@ -496,12 +496,12 @@ def populateConflictedQubit(qubit, source_cell, target_cell):
     edge = tuple(sorted([source_cell,target_cell]))
     
     # Write path to corresponding QCA edge
-    _QCA.edge[source_cell][target_cell]['path'] = [qubit]
-    _QCA.edge[target_cell][source_cell]['path'] = [qubit]
+    _QCA.edges[source_cell,target_cell]['path'] = [qubit]
+    _QCA.edges[target_cell,source_cell]['path'] = [qubit]
     
     # Assign cells to main qubits
-    _RGraph.node[qubit]['path'].append(edge)
-    _RGraph.node[qubit]['mapped'][edge] = [source_cell, target_cell]
+    _RGraph.nodes[qubit]['path'].append(edge)
+    _RGraph.nodes[qubit]['mapped'][edge] = [source_cell, target_cell]
     
 
 def expandPaths(source_cell, source_main):
@@ -516,23 +516,23 @@ def expandPaths(source_cell, source_main):
     queue = set()
 
     # Expand on main qubit
-    _RGraph.node[source_main]['cost'] = 0.0
-    _RGraph.node[source_main]['parent'] = source_cell
+    _RGraph.nodes[source_main]['cost'] = 0.0
+    _RGraph.nodes[source_main]['parent'] = source_cell
     queue.add(source_main)
     
     # Expand on qubits used in all paths    
-    tree = [edge for edge in _RGraph.node[source_main]['path'] if source_cell in edge]
+    tree = [edge for edge in _RGraph.nodes[source_main]['path'] if source_cell in edge]
     for edge in tree:
 
         neighbor = [x for x in edge if x!=source_cell].pop()
-        path = _QCA.edge[source_cell][neighbor]['path']
+        path = _QCA.edges[source_cell,neighbor]['path']
         parent = source_main
 
         for qubit in path[1:]:
-            if (source_cell in _RGraph.node[qubit]['cells']):
+            if (source_cell in _RGraph.nodes[qubit]['cells']):
                 # Expand qubit
-                _RGraph.node[qubit]['cost'] = 0.0
-                _RGraph.node[qubit]['parent'] = parent
+                _RGraph.nodes[qubit]['cost'] = 0.0
+                _RGraph.nodes[qubit]['parent'] = parent
                 # add to BFS queue
                 queue.add(qubit)
                 # Parent of next qubit
@@ -556,8 +556,8 @@ def routingTree(source_cell, targets, iteration):
         
         if VERBOSE: print('==============================Routing ' + str(source_cell) + ' ' + str(target_cell))
 
-        source_main = _QCA.node[source_cell]['main']
-        target_main = _QCA.node[target_cell]['main']
+        source_main = _QCA.nodes[source_cell]['main']
+        target_main = _QCA.nodes[target_cell]['main']
 
         if (source_main == target_main):
             if VERBOSE: print([source_main])
@@ -585,7 +585,7 @@ def routingTree(source_cell, targets, iteration):
     
         
         # Mark edge as routed
-        _QCA.edge[source_cell][target_cell]['routed'] =  True
+        _QCA.edges[source_cell,target_cell]['routed'] =  True
     
 def updateHistoryCost():
     '''
@@ -605,9 +605,9 @@ def updateHistoryCost():
     # Count qubits with conflicts
     for qubit in _Chimera:
         embedded = set()
-        paths = _RGraph.node[qubit]['path']
+        paths = _RGraph.nodes[qubit]['path']
         for path in paths:
-            cells = tuple(_RGraph.node[qubit]['mapped'][path])
+            cells = tuple(_RGraph.nodes[qubit]['mapped'][path])
             embedded.add(cells)
         
         num_cells = len(embedded)    
@@ -621,7 +621,7 @@ def updateHistoryCost():
         
         if (num_cells>0):    
             occ_qubits = occ_qubits + 1
-            _RGraph.node[qubit]['history'] = _RGraph.node[qubit]['history'] + (DELTA_H*num_cells)    
+            _RGraph.nodes[qubit]['history'] = _RGraph.nodes[qubit]['history'] + (DELTA_H*num_cells)    
         
 
     
@@ -631,7 +631,7 @@ def updateHistoryCost():
         if conflict_qubits:
             print('######################## CONFLICTS')
             for qubit in conflict_qubits:
-                print(str(qubit) + ' ' + str([x for x in _RGraph.node[qubit]['cells']]))
+                print(str(qubit) + ' ' + str([x for x in _RGraph.nodes[qubit]['cells']]))
 
             
     legal = not bool(conflicts)
@@ -643,7 +643,7 @@ def getTargets(source_cell):
     targets = []
     
     for neighbor in _QCA.neighbors(source_cell):
-        if not _QCA.edge[neighbor][source_cell]['routed']:
+        if not _QCA.edges[neighbor,source_cell]['routed']:
             targets.append(neighbor)
     
     return targets
@@ -656,16 +656,16 @@ def measureChains():
     global _max_edge
     
     for cell in _QCA:
-        size = len(_QCA.node[cell]['qubits'])
-        _QCA.node[cell]['size'] = size
-        _QCA.node[cell]['priority'] = size
+        size = len(_QCA.nodes[cell]['qubits'])
+        _QCA.nodes[cell]['size'] = size
+        _QCA.nodes[cell]['priority'] = size
     
     _max_edge = 0.0    
     for edge in _QCA.edges():
         u,v = edge
-        path_len = float(len(_QCA.edge[u][v]['path']))
-        _QCA.edge[u][v]['size'] = path_len 
-        _QCA.edge[v][u]['size'] = path_len 
+        path_len = float(len(_QCA.edges[u,v]['path']))
+        _QCA.edges[u,v]['size'] = path_len 
+        _QCA.edges[v,u]['size'] = path_len 
         if path_len > _max_edge:
             _max_edge = path_len
 
@@ -677,9 +677,9 @@ def embedFirst(cell):
     
     qubit = min(candidates , key=lambda candidate: getCost(cell, candidate, cell, None))
     
-    _QCA.node[cell]['main']  =  qubit
-    _QCA.node[cell]['qubits'].add(qubit)
-    _RGraph.node[qubit]['cells'].add(cell)
+    _QCA.nodes[cell]['main']  =  qubit
+    _QCA.nodes[cell]['qubits'].add(qubit)
+    _RGraph.nodes[qubit]['cells'].add(cell)
 
 
 def sortCells(cells, randomize, priority):
@@ -690,7 +690,7 @@ def sortCells(cells, randomize, priority):
         random.Random(SEED).shuffle(cells_list)
     
     if priority:
-        return sorted(cells_list, key=lambda key: _QCA.node[key]['priority'], reverse=True)
+        return sorted(cells_list, key=lambda key: _QCA.nodes[key]['priority'], reverse=True)
     else:
         return cells_list
 
@@ -734,10 +734,10 @@ def negotiatedCongestion():
             routingTree(source_cell, targets, itry)
             
             # Mark routed cell
-            _QCA.node[source_cell]['routed'] =  True
+            _QCA.nodes[source_cell]['routed'] =  True
             cell_queue.remove(source_cell)
             # Next cell
-            cell_queue.update([cell for cell in targets if not _QCA.node[cell]['routed']])
+            cell_queue.update([cell for cell in targets if not _QCA.nodes[cell]['routed']])
 
         # Determine conflict costs and legality        
         legal = updateHistoryCost()
