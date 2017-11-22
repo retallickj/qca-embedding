@@ -42,7 +42,7 @@ DELTA_P = 0.0
 
 ## ROUTING RESOURCES
 _alpha_p = 0            # Present-sharing cost scaler
-_max_edge = sys.maxint
+_max_edge = sys.maxsize
 
 _QCA = None
 _Chimera =  None
@@ -204,7 +204,7 @@ def getQubits(tile):
     tile_y = (tile-tile_x) / N
     
     qubits = []
-    for index in xrange(0,L):
+    for index in range(0,L):
         qubit_tuple_1 = (tile_y, tile_x, 0, index)
         qubit_tuple_2 = (tile_y, tile_x, 1, index)
         

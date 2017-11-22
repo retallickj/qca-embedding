@@ -62,7 +62,7 @@ def partition(iteration):
     global _concentration
     
     
-    regions = xrange( 0, N*M )
+    regions = range( 0, N*M )
     
     # Plot QCA Graph   
     if PLOT or WRITE: plotLocations(iteration)
@@ -96,23 +96,14 @@ def partition(iteration):
 def printConcentration():
     
     print('##################CONCENTRATION')
-    i=0
-    for k in xrange(M):
-        for j in xrange(N):
-            
-            print "%.1f  " % _concentration[i],
-            i = i + 1
-            
-        print "\n"
-
+    for j in range(M):
+        print([_concentration[i+j*N]  for i in  range(N)])
 
 def measureDispersion():
     '''
     Measure dispersion
     :param QCA:
     '''
-    #max_n_tile = max(concentration, key=concentration.get)
-    #max_n = concentration[max_n_tile]
      
     dist_accum = 0.0
      
@@ -168,9 +159,7 @@ def isSpread(history):
 
     # Identify trend
     increasing = True
-    dev_accum = 0.0
     diff_accum = 0.0
-    #prev_val = sys.maxint
     prev_val = 0.0
     for value in history:
         sq_diff = pow(value - mean, 2)
@@ -214,7 +203,7 @@ def layoutCost():
 def velocityVectors(D):
     V = {}
     num_tiles = N*M
-    for tile in xrange(num_tiles):
+    for tile in range(num_tiles):
 
         # Tile concentration
         C_tile   = _concentration[tile]
@@ -287,8 +276,8 @@ def getAttractors(tile, n,m):
 
 def moveCells(D):
     
-    for m in xrange(M):
-        for n in xrange(N):
+    for m in range(M):
+        for n in range(N):
             
             tile = n + m*N 
             cells =  _bins[tile]
@@ -365,7 +354,7 @@ def getDensities():
     occupancy = 0
     num_tiles = N*M
     
-    for tile in xrange(num_tiles):
+    for tile in range(num_tiles):
         
         C_tile = _concentration[tile]
         S_tile = _supply[tile]

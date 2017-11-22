@@ -75,7 +75,7 @@ def partitionScale(QCA):
     
     # Cell container for each tile/region
     num_regions = num_regions_x*num_regions_y
-    bins = {key : [] for key in xrange( 0,  num_regions)}
+    bins = {key : [] for key in range( 0,  num_regions)}
     
     # Size of a region
     qca_w_scale = W / float(num_regions_x)
@@ -122,12 +122,12 @@ def getSupply(Chimera):
     
     supply = {}
     
-    for m in xrange(M):
-        for n in xrange(N):
+    for m in range(M):
+        for n in range(N):
             tile = n + N*m
             supply[tile] = []
-            for h in xrange(2):
-                for i in xrange(L):
+            for h in range(2):
+                for i in range(L):
                     qubit_tuple = (m,n,h,i)
                     if qubit_tuple in Chimera:
                         if Chimera.neighbors(qubit_tuple):
@@ -142,7 +142,7 @@ def defaultConf ():
     DEFAULT_CONF = {}
     
     DEFAULT_CONF['PLOT'] = False
-    DEFAULT_CONF['STATS'] = True
+    DEFAULT_CONF['STATS'] = False
     DEFAULT_CONF['WRITE'] = False
     DEFAULT_CONF['VERIFY'] = False
     DEFAULT_CONF['VERBOSE'] = False
@@ -207,9 +207,9 @@ def setProblem(problem_adj, nodes_loc, spacing):
 
     QCA = nx.DiGraph()
 
-    qca_w1 = sys.maxint
+    qca_w1 = sys.maxsize
     qca_w2 = 0 
-    qca_h1 = sys.maxint
+    qca_h1 = sys.maxsize
     qca_h2 = 0
 
     # Iterate only through active cells

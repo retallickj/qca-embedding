@@ -28,7 +28,11 @@ class JSONDecoder(json.JSONDecoder):
         return self._decode(result)
 
     def _decode(self, o):
-        if isinstance(o, str) or isinstance(o, unicode):
+        try:
+            isUnicode = isinstance(o, unicode) 
+        except:
+            isUnicode = isinstance(o, str) # Python3 renamed unicode to str
+        if isUnicode: 
             try:
                 return int(o)
             except ValueError:
@@ -105,7 +109,7 @@ def load_chimera_file(filename):
     # Allows nxm, n!=m for testing
     #M, N = [int(x) for x in fp.readline().split()]
     
-    adj = {i: [] for i in xrange(1, num_qbits+1)}
+    adj = {i: [] for i in range(1, num_qbits+1)}
                     
     for line in fp:
         a, b = [int(x) for x in line.strip().split()]
