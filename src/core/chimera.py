@@ -12,7 +12,7 @@ __date__        = '2017-10-31'      # last update
 
 
 from collections import namedtuple
-from graph import Graph, Node
+from graph import Graph
 from numpy import sqrt,ceil,random
 from itertools import product
 
@@ -125,11 +125,7 @@ class Chimera(Graph):
             # header content
             fp.write('{0} {1}\n'.format(2*M*N*L, self.number_of_edges()))
             # collect list of included couplers
-            edges = []
-            for k1, n1 in self.node.items():
-                for k2 in n1.adj:
-                    if k1 < k2:
-                        edges.append((k1,k2))
+            edges = list(self.edges)
             for i,j in sorted(edges, key=lambda x: x[::-1]):
                 fp.write('{0} {1}\n'.format(i,j))
 
@@ -147,7 +143,7 @@ class Chimera(Graph):
         '''Randomly generate the Chimera graph with the given qubit yield. The
         number of qubits in the resulting graph is qb_yield*(2*M*N*L)'''
 
-        self.nodes = {}
+        self.clear()
         self.tiles = None
 
         # generate a complete Chimera graph
@@ -156,23 +152,23 @@ class Chimera(Graph):
 
         # add all qubits
         for n in range(2*self.M*self.N*self.L):
-            self.addNode(n+1)
+            self.add_node(n+1)
 
         # add all couplers
         for m,n in product(range(self.M),range(self.N)):
             qbmap = lambda h,l: tupleToLinear((m,n,h,l), self.M, self.N, self.L)
             # coupler within the tile
             for l1, l2 in product(range(self.L), range(self.L)):
-                self.addEdge(qbmap(0,l1), qbmap(1,l2))
+                self.add_edge(qbmap(0,l1), qbmap(1,l2))
             # couplers between rows
             if m<self.M-1:
                 for l in range(self.L):
                     qb = qbmap(0,l)
-                    self.addEdge(qb, qb+qpr)
+                    self.add_edge(qb, qb+qpr)
             if n<self.N-1:
                 for l in range(self.L):
                     qb = qbmap(1,l)
-                    self.addEdge(qb, qb+qpt)
+                    self.add_edge(qb, qb+qpt)
 
         # select broken qubits
         n_bqb = int(round((1-qb_yield)*self.size(),0)) # number of broken qubits
@@ -180,12 +176,7 @@ class Chimera(Graph):
 
         # remove broken qubits
         for qb in br_qbs:
-            del self.nodes[qb]
-
-        # remove edges to broken qubits
-        for k, n in self.nodes.items():
-            for qb in br_qbs:
-                n.adj.pop(qb, None) # remove edge if it exists
+            self.remove_node(qb)
 
 
 if __name__ == '__main__':
@@ -198,5 +189,5 @@ if __name__ == '__main__':
         print('No chimera file given, generating chimera')
         fn = None
 
-    chimera = Chimera(fn, qb_yield=.99)
+    chimera = Chimera(fn)
     chimera.toFile('../temp/chimera2')

@@ -79,9 +79,9 @@ class Graph(nx.Graph):
 
         # construct derived class and assign graph data
         G = self.__new__(type(self))
-        G.graph = G0.graph  # graph attributes
-        G.node = G0.node    # dict of node dicts
-        G.edge = G0.edge    # dict of edge dicts
+        G.graph = G0.graph    # graph attributes
+        G.nodes = G0.nodes    # dict of node dicts
+        G.edges = G0.edges    # dict of edge dicts
 
         return G
 
