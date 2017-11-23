@@ -84,7 +84,7 @@ class Chimera(Graph):
     '''Specialized Graph subclass for the Chimera hardware connectivity graph.'''
 
     L = 4   # number of qubits per half-tile
-    M = 12  # number of tile rows
+    M = 16  # number of tile rows
     N = M   # number of tile columns
 
     NB = 1  # number of header lines in Chimera graph file
@@ -190,4 +190,4 @@ if __name__ == '__main__':
         fn = None
 
     chimera = Chimera(fn)
-    chimera.toFile('../temp/chimera2')
+    chimera.toFile('../temp/ch16.txt')
