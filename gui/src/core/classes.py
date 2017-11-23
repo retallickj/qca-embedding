@@ -13,9 +13,9 @@ import os
 import traceback
 import numpy as np
 
-from core.chimera import tuple_to_linear, linear_to_tuple
-import core.core_settings as settings
-from core.dense_embed.assign import assign_parameters
+from .chimera import tuple_to_linear, linear_to_tuple
+from . import core_settings as settings
+from .dense_embed.assign import assign_parameters
 
 # try to import different embedding methods
 embedders = {'dense': True,
@@ -27,24 +27,26 @@ try:
 except Exception as e:
     print('Could not load dense embedding method...')
     embedders['dense'] = False
+    print(traceback.print_exc())
 
 try:
-    from layout_embed.embed import layoutEmbed, layoutConfiguration
-    from layout_embed.embed import setProblem, setTarget, layoutToModels
+    from core.layout_embed.embed import layoutEmbed, layoutConfiguration
+    from core.layout_embed.embed import setProblem, setTarget, layoutToModels
 except Exception as e:
     print('Could not load layout embedding method...')
     embedders['layout'] = False
-    print (traceback.print_exc())
+    print(traceback.print_exc())
 
 try:
     from dwave_sapi2.embedding import find_embedding
 except Exception as e:
     print('Could not load heuristic embedding method...')
     embedders['heur'] = False
+    print(traceback.print_exc())
 
 # echo available embedder methods
 print('Emedder options:')
-for key, flag in embedders.iteritems():
+for key, flag in embedders.items():
     print('\t{0}:\t{1}'.format(key.upper(), 'Enabled' if flag else 'Disabled'))
 
 SABOTAGE = False
@@ -120,7 +122,7 @@ class Embedding:
 
         # run a number of embedding and choose the best
         embeds = []
-        for trial in xrange(settings.DENSE_TRIALS):
+        for trial in range(settings.DENSE_TRIALS):
             print('Trial {0}...'.format(trial)),
             try:
                 cell_map, paths = denseEmbed(qca_adj, write=False)
@@ -176,7 +178,7 @@ class Embedding:
             if type(e).__name__ == 'KeyboardInterrupt':
                 raise KeyboardInterrupt
             print('Layout-Aware Embedding Failed')
-            print (traceback.print_exc())
+            print(traceback.print_exc())
             return
 
         self.models = layoutToModels(cell_map)
@@ -208,13 +210,13 @@ class Embedding:
                 A.add((l1, l2))
 
         try:
-            print 'Running heuristic embedding'
+            print('Running heuristic embedding')
             #models = find_embedding(S, S_size, A, A_size)
             models = find_embedding(S, A)
         except Exception as e:
             print(e.message())
 
-        print 'Embedding finished'
+        print('Embedding finished')
         self.good = len(models) == S_size
 
         # map models to standard format
@@ -245,7 +247,7 @@ class Embedding:
         self.full_adj = full_adj
 
         self.qca_adj = {i: J[i].nonzero()[0].tolist()
-            for i in xrange(J.shape[0])}
+            for i in range(J.shape[0])}
 
         # driver cells
         self.drivers = set([i for i in self.qca_adj if cells[i].driver])

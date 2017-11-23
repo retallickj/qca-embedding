@@ -54,7 +54,7 @@ def gen_pols(n):
     if n <= 0:
         return []
     return [tuple(2*int(x)-1 for x in format(i, '#0{0}b'.format(n+2))[2:])
-            for i in xrange(pow(2, n))]
+            for i in range(pow(2, n))]
 
 
 ### QCA CELL PROCESSING
@@ -89,7 +89,7 @@ def getEk(c1, c2, DR=2):
     R = np.sqrt(np.sum(pow(X1-X2, 2), axis=2))
 
     if np.min(R) == 0:
-        print 'qdot overlap detected'
+        print('qdot overlap detected')
         return 0.
 
     # QCADesigner orders qdots either CW or CCW so same and diff configurations
@@ -205,9 +205,9 @@ def identify_inverters(A):
     N = A.shape[0]
 
     # count number of strong interactions for each cell
-    num_strong = [np.count_nonzero(A[i,:] == 1) for i in xrange(N)]
+    num_strong = [np.count_nonzero(A[i,:] == 1) for i in range(N)]
 
-    for i in xrange(N):
+    for i in range(N):
         if num_strong[i] <= 1:   # check if an inverter
             adj = [j for j in range(N) if A[i, j] == -1 and num_strong[j] == 1]
             if len(adj) == 2:

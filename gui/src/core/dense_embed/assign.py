@@ -64,9 +64,9 @@ def minimal_couplers(subgraphs, edges):
     # for each pair of subgraphs, keep the inter-subgraph edge with the
     # minimum total cost of its end nodes
     nodes = sorted(subgraphs.keys())
-    for i in xrange(N-1):
+    for i in range(N-1):
         q1 = nodes[i]
-        for j in xrange(i+1, N):
+        for j in range(i+1, N):
             q2 = nodes[j]
             edge_costs = {e: costs[e[0]]+costs[e[1]] for e in edges[(q1, q2)]}
             edges[(q1, q2)] = sort_dict(edge_costs)[0]
@@ -179,9 +179,9 @@ def partition_graph(G, parts):
     # get list of edges between each subgraph
     edges = {}
     nodes = sorted(parts.keys())
-    for i1 in xrange(N-1):
+    for i1 in range(N-1):
         n1 = nodes[i1]
-        for i2 in xrange(i1+1, N):
+        for i2 in range(i1+1, N):
             n2 = nodes[i2]
             edges[(n1, n2)] = []
             for u, v in list(itertools.product(parts[n1], parts[n2])):
@@ -221,9 +221,9 @@ def convert_to_parameters(h, J, subgraphs, edges, J_inner):
 
     # handle inter-subgraph parameters
     nodes = sorted(subgraphs.keys())
-    for i in xrange(N-1):
+    for i in range(N-1):
         n1 = nodes[i]
-        for j in xrange(i+1, N):
+        for j in range(i+1, N):
             n2 = nodes[j]
             if n2 in J[n1]:
                 for q1, q2 in edges[(n1, n2)]:

@@ -9,8 +9,13 @@
 # Licence: Copyright 2015
 # -----------------------------------
 
-from PyQt4 import QtGui, QtCore, QtSvg
-import gui_settings as settings
+import sys
+
+# import Qt based on installed version
+from gui.pyqt_import import importPyQt
+QtGui, QtWidgets, QtCore, QtSvg = importPyQt('QtGui', 'QtWidgets', 'QtCore', 'QtSvg')
+
+import gui.gui_settings as settings
 from core.parse_qca import parse_qca_file
 from core.auxil import convert_to_full_adjacency, convert_to_lim_adjacency,\
     prepare_convert_adj, CELL_FUNCTIONS, getOutputs
@@ -18,8 +23,10 @@ from core.auxil import convert_to_full_adjacency, convert_to_lim_adjacency,\
 import numpy as np
 import matplotlib.pyplot as plt
 
+import traceback
 
-class QCACellWidget(QtGui.QWidget):
+
+class QCACellWidget(QtWidgets.QWidget):
     '''QCA Cell Widget'''
 
     cm = plt.get_cmap('bwr')
@@ -131,7 +138,7 @@ class QCACellWidget(QtGui.QWidget):
         self.mouse_pos = None
         self.parent.mouseReleaseEvent(e)
 
-class Canvas(QtGui.QWidget):
+class Canvas(QtWidgets.QWidget):
     '''Canvas to draw QCA cells'''
 
     def __init__(self, parent):
@@ -183,8 +190,8 @@ class Canvas(QtGui.QWidget):
         # draw all non-zero interactions
         pen = QtGui.QPen(QtGui.QColor(0, 0, 0, 255))
         pen.setWidth(max(1, settings.INT_PEN_WIDTH*self.scaling))
-        for i in xrange(J0.shape[0]-1):
-            for j in xrange(i+1, J0.shape[0]):
+        for i in range(J0.shape[0]-1):
+            for j in range(i+1, J0.shape[0]):
                 if abs(J0[i, j]) > 0.:
                     pen.setStyle(settings.INT_PEN_STYLE[
                         'strong' if abs(J0[i, j]) > 0.5 else 'weak'])
@@ -212,7 +219,7 @@ class Canvas(QtGui.QWidget):
         # determine which cell was clicked
 
 
-class QCAWidget(QtGui.QScrollArea):
+class QCAWidget(QtWidgets.QScrollArea):
     '''Widget for viewing QCA circuits'''
 
     def __init__(self, parent=None, filename=None):
@@ -253,6 +260,7 @@ class QCAWidget(QtGui.QScrollArea):
         except Exception as e:
             print(e.message)
             print('Failed to load QCA File...')
+            print(traceback.print_exc())
             return
 
         # save filename for reference
@@ -430,6 +438,10 @@ class QCAWidget(QtGui.QScrollArea):
         '''Scrolling options'''
 
         if self.zoom_flag:
-            self.canvas.rescale(zoom=e.delta() > 0, f=settings.MAG_WHEEL_FACT)
+            try:
+                delta = e.delta()
+            except AttributeError:
+                delta = e.angleDelta().y()
+            self.canvas.rescale(zoom=delta > 0, f=settings.MAG_WHEEL_FACT)
         else:
             super(QCAWidget, self).wheelEvent(e)

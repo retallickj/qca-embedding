@@ -9,12 +9,17 @@
 # Licence: Copyright 2015
 # -----------------------------------
 
-from PyQt4 import QtGui, QtCore, QtSvg
-import gui_settings as settings
+import sys
+
+# import Qt based on installed version
+from gui.pyqt_import import importPyQt
+QtGui, QtWidgets, QtCore, QtSvg = importPyQt('QtGui', 'QtWidgets', 'QtCore', 'QtSvg')
+
+import gui.gui_settings as settings
 from core.chimera import load_chimera_file, linear_to_tuple
 
 
-class ChimeraNode(QtGui.QWidget):
+class ChimeraNode(QtWidgets.QWidget):
     '''Graph node representing a qubit on D-Wave's processor'''
 
     def __init__(self, tile, h, l, active):
@@ -112,7 +117,7 @@ class ChimeraNode(QtGui.QWidget):
         self.mouse_pos = None
 
 
-class ChimeraTile(QtGui.QWidget):
+class ChimeraTile(QtWidgets.QWidget):
     ''' '''
 
     def __init__(self, parent, m, n, adj=None):
@@ -131,7 +136,7 @@ class ChimeraTile(QtGui.QWidget):
 
         # initialise nodes
         for h in [True, False]:
-            for l in xrange(4):
+            for l in range(4):
                 key = (self.m, self.n, h, l)
                 active = len(adj[key]) > 0
                 if active:
@@ -193,7 +198,7 @@ class ChimeraTile(QtGui.QWidget):
             node.drawNode(painter)
 
 
-class Canvas(QtGui.QWidget):
+class Canvas(QtWidgets.QWidget):
     ''' '''
 
     def __init__(self, parent):
@@ -281,7 +286,7 @@ class Canvas(QtGui.QWidget):
         painter.end()
 
 
-class ChimeraWidget(QtGui.QScrollArea):
+class ChimeraWidget(QtWidgets.QScrollArea):
     '''Widget for viewing QCA circuits'''
 
     def __init__(self, parent=None):
@@ -306,7 +311,7 @@ class ChimeraWidget(QtGui.QScrollArea):
     def initUI(self):
         '''Initialise UI'''
 
-        self.layout = QtGui.QGridLayout(self)
+        self.layout = QtWidgets.QGridLayout(self)
         self.canvas = Canvas(self)
         self.setWidget(self.canvas)
         self.canvas.setLayout(self.layout)
@@ -343,8 +348,8 @@ class ChimeraWidget(QtGui.QScrollArea):
         self.N = N
         self.adj = adj
 
-        for m in xrange(M):
-            for n in xrange(N):
+        for m in range(M):
+            for n in range(N):
                 tile = ChimeraTile(self, m, n, adj=adj)
                 self.tiles[(m, n)] = tile
                 self.layout.addWidget(tile, m, n)
@@ -465,8 +470,8 @@ class ChimeraWidget(QtGui.QScrollArea):
             rx = [min(tile1[1], tile2[1]), max(tile1[1], tile2[1])+1]
 
         # for now just select tiles
-        for m in xrange(ry[0], ry[1]):
-            for n in xrange(rx[0], rx[1]):
+        for m in range(ry[0], ry[1]):
+            for n in range(rx[0], rx[1]):
                 self.tiles[(m, n)].selected = True
 
         self.active_range = {'M': ry,

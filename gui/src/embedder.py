@@ -9,15 +9,20 @@
 # Licence: Copyright 2015
 # -----------------------------------
 
-from PyQt4 import QtGui
-from gui.mw_embedder import MainWindow
 import sys
+
+# import Qt based on installed version
+from gui.pyqt_import import importPyQt
+QtWidgets = importPyQt('QtWidgets')
+
+from gui.mw_embedder import MainWindow
+
 
 
 def main():
     '''Main loop which initialises embedder application'''
 
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     w = MainWindow()
     w.show()

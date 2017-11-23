@@ -166,7 +166,7 @@ def bestPath(route, reserved):
     global _paths, _curr_used
 
     if route[0] == route[1]:
-        print 'bestPath ERROR: start is same as goal!'
+        print('bestPath ERROR: start is same as goal!')
         return 0
 
     # initialise path
@@ -191,7 +191,7 @@ def bestPath(route, reserved):
                 break
 
     if not check:
-        print 'bestPath ERROR: ran out of paths... unconnected graph?'
+        print('bestPath ERROR: ran out of paths... unconnected graph?')
         return 0
 
     # reset values
@@ -282,7 +282,7 @@ def Routing(routes, reserved, writePath=''):
         resetFlags()
         _allPaths = {}
 
-        for i in xrange(len(routes)):
+        for i in range(len(routes)):
             # mark off all end-points as used
             for rt in routes:
                 _curr_used[rt[0]] = True

@@ -41,7 +41,7 @@ def writeSol(models, max_model, fname):
     try:
         fp = open(fname, 'w')
     except:
-        print 'Failed to open file for writing: %s' % fname
+        print('Failed to open file for writing: {0}'.format(fname))
         return False
 
     # header
@@ -244,28 +244,28 @@ def formatProblem(extended_chains, qbits):
 
     # record indices for chains containing nodes
     l = len(node_lens)
-    ind_nodes = [i for i in xrange(l) if node_lens[i] > 0]
-    ind_none = [i for i in xrange(l) if node_lens[i] == 0]
+    ind_nodes = [i for i in range(l) if node_lens[i] > 0]
+    ind_none = [i for i in range(l) if node_lens[i] == 0]
 
     # generate lists of terminating nodes
     term_nodes = list(set(reduce(lambda x, y: list(x) + list(y), keys)))
     end_lists = {node: {'n': [], 'm': []} for node in term_nodes}
 
-    for i in xrange(l):
+    for i in range(l):
         key = keys[i]
         end_lists[key[0]]['n'].append(i)
         end_lists[key[1]]['m'].append(i)
 
     # generate list of ordered internal qubits
     chain_qbits = []
-    for i in xrange(l):
+    for i in range(l):
         key = keys[i]
         chain = []
         # add end points to nodes list
         nodes = cp(chains[i])
         nodes.insert(0, key[0])
         nodes.append(key[1])
-        for i in xrange(len(nodes)-1):
+        for i in range(len(nodes)-1):
             c1, c2 = nodes[i:i+2]
             # add connecting chain and end qbit
             chain += _adj[c1][c2] + [qbits[c2]]
@@ -300,7 +300,7 @@ def allocateChain(seq_n, seq_m, seq_left, chain, chain_qb, models):
     shuffle(sizes)  # randomly order group sizes
 
     k = 0
-    for i in xrange(len(chain)):
+    for i in range(len(chain)):
         cell = chain[i]
         qbs = seq_left[k:k+sizes[i]]
         k += sizes[i]
@@ -321,15 +321,15 @@ def solToModels(sol, prob_dict):
     l = len(keys)   # number of chains
 
     if False:   # for debugging
-        print '*'*30
-        print 'Chains:\n'
-        for i in xrange(len(chains)):
+        print('*'*30)
+        print('Chains:\n')
+        for i in range(len(chains)):
             ch = chains[i]
             n, m = int(round(sol['n'][i])), int(round(sol['m'][i]))
-            print 'n: %d \tm: %d' % (n, m)
-            print 'nodes: %s' % str(ch)
-            print 'ends: %s' % str(keys[i])
-            print 'qubits: %s\n' % str(chain_qbits[i])
+            print('n: {0} \tm: {1}'.format(n, m))
+            print('nodes: {0}'.format(str(ch)))
+            print('ends: {0}'.format(str(keys[i])))
+            print('qubits: {0}\n'.format(str(chain_qbits[i])))
 
     # initialize model dicts
     models = {}
@@ -343,7 +343,7 @@ def solToModels(sol, prob_dict):
         end_points.add(k[1])
 
     # first handle long chains
-    for i in xrange(l):
+    for i in range(l):
         key = keys[i]   # end points
         chain = chains[i]
         chain_qb = chain_qbits[i]
@@ -361,14 +361,14 @@ def solToModels(sol, prob_dict):
         models[key[0]]['qbits'] += seq_n
         seq_n.insert(0, qbits[key[0]])
         if len(seq_n) > 1:
-            for j in xrange(len(seq_n)-1):
+            for j in range(len(seq_n)-1):
                 models[key[0]]['int_coup'].append((seq_n[j], seq_n[j+1]))
 
         # add seq_m couplers to key[1]
         models[key[1]]['qbits'] += seq_m
         seq_m.append(qbits[key[1]])
         if len(seq_m) > 1:
-            for j in xrange(len(seq_m)-1):
+            for j in range(len(seq_m)-1):
                 models[key[1]]['int_coup'].append((seq_m[j], seq_m[j+1]))
 
         # key[0] external coupler
@@ -417,8 +417,8 @@ def solveLP(prob_dict, verbose):
     mu_dict = {'lowBound': 0, 'upBound': None, 'cat': pulp.LpContinuous}
 
     # variable to be optimized
-    n = [pulp.LpVariable('n%d' % i, **par_dict) for i in xrange(K)]  # starts
-    m = [pulp.LpVariable('m%d' % i, **par_dict) for i in xrange(K)]  # end
+    n = [pulp.LpVariable('n%d' % i, **par_dict) for i in range(K)]  # starts
+    m = [pulp.LpVariable('m%d' % i, **par_dict) for i in range(K)]  # end
     mu = pulp.LpVariable('mu', **mu_dict)   # max model size
 
     ## objective function
@@ -447,18 +447,18 @@ def solveLP(prob_dict, verbose):
         prob.writeLP(LP_FILE)
         fn = LP_FILE
     except:
-        print 'Invalid LP filename'
+        print('Invalid LP filename')
         prob.writeLP('./lp-sol.lp')
         fn = './lp-sol.lp'
     if verbose:
-        print 'Saved to file: %s' % fn
+        print('Saved to file: {0}'.format(fn))
 
-    print '\n\n'
+    print('\n\n')
     if USE_DEFAULT:
         status = prob.solve()
     else:
         status = prob.solve(solver=pulp.GLPK_CMD())
-    print '\n\n'
+    print('\n\n')
 
     # check solution status
     if verbose:
@@ -473,18 +473,18 @@ def solveLP(prob_dict, verbose):
     # delete solution file
     if DEL_LP_FILE:
         if verbose:
-            print 'Deleting file: %s' % fn
+            print('Deleting file: {0}'.format(fn))
         os.remove(fn)
 
     if verbose:
-        print sol['m']
-        print sol['n']
+        print(sol['m'])
+        print(sol['n'])
 
     models = solToModels(sol, prob_dict)
 
     if verbose:
         for cell in models:
-            print 'c: %s \t :: %s' % (str(cell), str(models[cell]['qbits']))
+            print('c: {0} \t :: {1}'.format(str(cell), str(models[cell]['qbits'])))
 
     return models, sol['mu']
 
@@ -518,8 +518,8 @@ def convertToModels(paths, qbits, verbose=False):
     global _adj
 
     if verbose:
-        print '\n\nStarting conversion...'
-        print 'Largest path size: %d' % (max(map(len, paths.values()))-2)
+        print('\n\nStarting conversion...')
+        print('Largest path size: {0}'.format(max(map(len, paths.values()))-2))
 
     ## generate adjacency dictionary from paths
     all_paths = preProc(paths, qbits)
@@ -541,7 +541,7 @@ def convertToModels(paths, qbits, verbose=False):
             return None, -1
     else:
         if verbose:
-            print 'No extra qubits used... assigning default models'
+            print('No extra qubits used... assigning default models')
         # generate model parameters
         for cell in qbits:
             qbit = qbits[cell]

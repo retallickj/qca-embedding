@@ -17,8 +17,8 @@ import re
 
 import networkx as nx
 import numpy as np
-from auxil import getEk, CELL_FUNCTIONS, CELL_MODES
-from itertools import combinations
+from core.auxil import getEk, CELL_FUNCTIONS, CELL_MODES
+from itertools import combinations, chain
 
 from pprint import pprint
 
@@ -111,7 +111,7 @@ def proc_hierarchy(hier):
 
     # merge cell layers, will lead to qdot conflict if vertical x-over
     cell_dicts = [layer['children'] for layer in cell_layers]
-    cell_dicts = reduce(lambda x, y: x+y, cell_dicts)
+    cell_dicts = list(chain.from_iterable(cell_dicts))
 
     # get grid-spacing (average cell bounding box)
     cx = float(cell_dicts[0]['vars']['cell_options.cxCell'])
@@ -203,8 +203,8 @@ def zone_cells(cells, spacing, show=False):
     # construct connectivity matrix
     J = np.zeros([N, N], dtype=float)
     DR = R_MAX*spacing
-    for i in xrange(N-1):
-        for j in xrange(i+1, N):
+    for i in range(N-1):
+        for j in range(i+1, N):
             Ek = getEk(cells[i], cells[j], DR=DR)
             if Ek:
                 J[i, j] = Ek
@@ -240,7 +240,7 @@ def zone_cells(cells, spacing, show=False):
     G = nx.DiGraph()
     # nodes
     for clk in clk_ind:
-        for i in xrange(len(sub_ind[clk])):
+        for i in range(len(sub_ind[clk])):
             key = (clk, i)
             G.add_node(key, inds=sub_ind[clk][i])
     # edges
@@ -248,9 +248,9 @@ def zone_cells(cells, spacing, show=False):
         adj_clk = 3 if clk == 0 else clk-1
         if not adj_clk in sub_ind:
             continue
-        for i in xrange(len(sub_ind[clk])):
+        for i in range(len(sub_ind[clk])):
             k1 = (clk, i)
-            for j in xrange(len(sub_ind[adj_clk])):
+            for j in range(len(sub_ind[adj_clk])):
                 k2 = (adj_clk, j)
                 if np.any(J[G.node[k1]['inds'], :][:, G.node[k2]['inds']]):
                     G.add_edge(k2, k1)
@@ -263,7 +263,7 @@ def zone_cells(cells, spacing, show=False):
 
     # find input nodes, have no predecessors
     predecs = {n: len(G.predecessors(n)) for n in G.nodes_iter()}
-    inputs = [ky for ky, val in predecs.iteritems() if val == 0]
+    inputs = [ky for ky, val in predecs.items() if val == 0]
 
     # expand from inputs
     visited = {key: False for key in G.nodes()}
@@ -319,7 +319,7 @@ def reorder_cells(cells, J, flipy=False):
     for ind, cell in enumerate(cells):
         keys[ind] = (ysgn*cell['y'], cell['x'])
 
-    order = zip(*sorted([(keys[i], i) for i in keys]))[1]
+    order = list(zip(*sorted([(keys[i], i) for i in keys])))[1]
 
     # relabel cells and reorder the J matrix
     cells = [cells[i] for i in order]

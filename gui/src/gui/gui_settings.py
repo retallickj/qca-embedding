@@ -9,7 +9,11 @@
 # Licence: Copyright 2015
 # -----------------------------------
 
-from PyQt4 import QtGui, QtCore
+import sys
+
+# import Qt based on installed version
+from gui.pyqt_import import importPyQt
+QtGui, QtCore = importPyQt('QtGui', 'QtCore')
 
 # MAIN WINDOW SETTINGS
 WIN_DX = 1400   # width of the main window

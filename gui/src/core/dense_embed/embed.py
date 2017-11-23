@@ -8,7 +8,7 @@
 #######################################################################
 ### IMPORTS ###
 
-from __future__ import division
+from __future__ import division, print_function
 
 from bisect import bisect
 from random import random, shuffle
@@ -19,7 +19,7 @@ import os   # for avoiding file overwriting
 import re
 import itertools
 
-import routing as Routing
+from . import routing as Routing
 
 
 #######################################################################
@@ -138,7 +138,7 @@ def writeSol(fp):
         if _qbit_flags[qbit]['taken']:
             num_qbits += 1
 
-    print 'Used %d qubits...' % num_qbits
+    print('Used {0} qubits...'.format(num_qbits))
 
 
 # checked
@@ -190,7 +190,7 @@ def log(txt):
 
     if LOGGING:
         if VERBOSE:
-            print txt,
+            print(txt,end='')
         _fp_log.write(txt)
 
 
@@ -336,8 +336,8 @@ def reset():
 
     # initialise _tile_occ
     _tile_occ = {}
-    _tile_occ['r'] = [0 for _ in xrange(M)]
-    _tile_occ['c'] = [0 for _ in xrange(N)]
+    _tile_occ['r'] = [0 for _ in range(M)]
+    _tile_occ['c'] = [0 for _ in range(N)]
 
     # set _vacancy... need to have placed a cell first so set to -1
     _vacancy = [-1, -1, -1, -1]
@@ -368,11 +368,11 @@ def setChimera(chimera_adj, m, n, l):
     '''
 
     global _qbitAdj, M, N, L
-    
+
     M, N, L = m, n, l
 
     _qbitAdj = chimera_adj
-    
+
     # sort each keyed list
     for key in _qbitAdj:
         _qbitAdj[key].sort()
@@ -517,7 +517,7 @@ def firstQubit(cell, M1=False):
         for tile in tiles:
             r, c = tile
             # try to find suitable qubit
-            order = [(h, i) for h in xrange(2) for i in xrange(L)]
+            order = [(h, i) for h in range(2) for i in range(L)]
             shuffle(order)
             for h, i in order:
                 qbit = (r, c, h, i)
@@ -563,7 +563,7 @@ def firstQubit(cell, M1=False):
             r = max(bisect(CDF[0], random()), 1)-1
             c = max(bisect(CDF[1], random()), 1)-1
             # pick qubit
-            order = [(h, i) for h in xrange(2) for i in xrange(L)]
+            order = [(h, i) for h in range(2) for i in range(L)]
             shuffle(order)
             for h, i in order:
                 qbit = (r, c, h, i)
@@ -948,14 +948,14 @@ def checkSol():
     check = False
 
     if not all(map(lambda x: not x is None, _qubits.values())):
-        print _paths
-        print _qubits
+        print(_paths)
+        print(_qubits)
         raise KeyError('Not all cells were assigned a qubit')
 
     for c1 in _source:
         for c2 in _source[c1]:
             if not ((c1, c2) in _paths or (c2, c1) in _paths):
-                print('No path between %s and %s' % (str(c1), str(c2)))
+                print('No path between {0} and {1}'.format(c1, c2))
                 check = True
     if check:
         raise KeyError('Not all paths were placed')
@@ -963,10 +963,10 @@ def checkSol():
     # check all path connections are available and count uses of non cell qbits
     uses = {q: 0 for q in _qbitAdj}
     for path in _paths.values():
-        for i in xrange(len(path)-1):
+        for i in range(len(path)-1):
             q1, q2 = path[i: i+2]
             if not q2 in _qbitAdj[q1]:
-                print('No coupler available for %s to %s' % (str(q1), str(q2)))
+                print('No coupler available for {0} to {1}'.format(q1, q2))
                 check = True
             if i > 0:
                 uses[q1] += 1
@@ -1008,7 +1008,7 @@ def suitability(qbit, srcs=[]):
 
     # account for negotiating free qubits with other in-tile qubits
     r, c, h, l0 = qbit
-    qbs = [(r, c, h, l) for l in xrange(L) if l != l0]
+    qbs = [(r, c, h, l) for l in range(L) if l != l0]
     qbs = filter(lambda x: x in _cells and _qbit_flags[x]['assigned'], qbs)
 
     for qb in qbs:
@@ -1238,7 +1238,7 @@ def prepSeam(seam):
         path = _paths[key]
         d = []
         nf, nh, nn = 0, 0, 0
-        for i in xrange(1, len(path)):
+        for i in range(1, len(path)):
             connect = [path[i-1], path[i]]
             n1, n2 = map(check_qb, connect)
             if n1 and n2:       # completely on mobile side of seam
@@ -1362,7 +1362,7 @@ def newPath(key, path, tg_fn):
 
     new_path = []
     # print path
-    for i in xrange(len(path)):
+    for i in range(len(path)):
         conn, typ = path[i][0:2]
         new_conn = map(tg_fn, conn)
         if typ == 'full':
@@ -1401,7 +1401,7 @@ def movePath(key, path, tg_fn):
     new_path = []
     log('Moving path: %s \n' % str(key))
     # print path
-    for i in xrange(len(path)):
+    for i in range(len(path)):
         conn, typ = path[i][0:2]
         new_conn = map(tg_fn, conn)
         if typ == 'full':
@@ -1584,7 +1584,7 @@ def shorten_wire_paths():
 
     pre_ex = sum(map(lambda x: len(x)-2, _paths.values()))
 
-    print "There are %d cells, there are %d in qbit flags" %(len(_cells), len(_qbit_flags))
+    print("There are {0} cells, there are {1} in qbit flags".format(len(_cells), len(_qbit_flags)))
     # clear qbit flags except the nodes (which do not move)
     qb_nodes = []
     for c in nodes:
@@ -1651,7 +1651,7 @@ def shorten_wire_paths():
         return (pre_ex - post_ex)
     # otherwise restore older correct mappings
     else:
-        print "Removing long paths failed, using earlier embedding"
+        print("Removing long paths failed, using earlier embedding")
         used_qb = []
         for path in _paths.values():
             used_qb.extend(path)
@@ -1675,7 +1675,7 @@ def get_wire_path(head, end_qb, nodes):
             return new_paths
 
         added = False
-        for i in xrange(len(paths)):
+        for i in range(len(paths)):
             if new_paths and len(paths[i]) > len(new_paths[0]):
                 added = True
                 for p in new_paths:
@@ -1746,7 +1746,7 @@ def lengthen(qb_wire, wire, nodes, count):
                     continue
 
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb2 = (qb1[0], qb1[1], qb1[2]^1, j)
                 if not _qbit_flags[qb2]['taken']:
                     found = True
@@ -1757,7 +1757,7 @@ def lengthen(qb_wire, wire, nodes, count):
                 continue
 
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb3 = (qb1[0], qb1[1], qb1[2], j)
                 qb4 = (qb[0], qb[1], qb[2], j)
                 if not _qbit_flags[qb3]['taken'] and qb3 != qb1 \
@@ -1786,7 +1786,7 @@ def lengthen(qb_wire, wire, nodes, count):
         # move to the correct tile, switch orientation again
         elif qb_wire[i+1][2] == qb[2]:
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb1 = (qb[0], qb[1], qb[2]^1, j)
                 if not _qbit_flags[qb1]['taken']:
                     found = True
@@ -1797,7 +1797,7 @@ def lengthen(qb_wire, wire, nodes, count):
                 continue
 
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb2 = (qb[0], qb[1], qb[2], j)
 
                 if qb_wire[i+1][0] == qb[0]:
@@ -1822,7 +1822,7 @@ def lengthen(qb_wire, wire, nodes, count):
                 continue
 
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb4 = (qb3[0], qb3[1], qb3[2]^1, j)
                 if not _qbit_flags[qb4]['taken']:
                     found = True
@@ -1853,7 +1853,7 @@ def lengthen(qb_wire, wire, nodes, count):
         # switch orientation twice
         if qb_wire[i+1][2] != qb[2]:
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb1 = (qb[0], qb[1], qb[2]^1, j)
                 if not _qbit_flags[qb1]['taken']:
                     found = True
@@ -1864,7 +1864,7 @@ def lengthen(qb_wire, wire, nodes, count):
                 continue
 
             found = False
-            for j in xrange(L):
+            for j in range(L):
                 qb2 = (qb[0], qb[1], qb[2], j)
                 if not _qbit_flags[qb2]['taken'] and qb2 != qb:
                     found = True
@@ -1891,7 +1891,7 @@ def lengthen(qb_wire, wire, nodes, count):
         holder_qb = []
         if count > len(qb_wire):
             return None
-        for j in xrange(0,count):
+        for j in range(0,count):
             if qb_wire[j] in nodes:
                 continue
             holder_qb.append(qb_wire[j])
@@ -1918,24 +1918,24 @@ def update_mapping(qb_wire, wire, nodes, all_paths, all_qbs):
     '''update paths and qbs'''
 
     # remove old unused paths
-    for i in xrange(1, len(wire)):
+    for i in range(1, len(wire)):
         if (wire[i-1], wire[i]) in all_paths:
             del all_paths[(wire[i-1], wire[i])]
         elif (wire[i], wire[i-1]) in all_paths:
             del all_paths[(wire[i], wire[i-1])]
         else:
-            print "ERROR: Can't find path in paths"
+            print("ERROR: Can't find path in paths")
 
     # add new paths and qbs
     if len(qb_wire) > len(wire):
-        for i in xrange(len(wire)):
+        for i in range(len(wire)):
             all_qbs[wire[i]] = qb_wire[i]
             if i > 0 and i < len(wire) - 1:
                 all_paths[(wire[i-1],wire[i])] = [qb_wire[i-1], qb_wire[i]]
 
         all_paths[(wire[len(wire) - 2], wire[len(wire) - 1])] = qb_wire[len(wire) - 2:]
     else:
-        for i in xrange(len(qb_wire)):
+        for i in range(len(qb_wire)):
             all_qbs[wire[i]] = qb_wire[i]
             if i > 0 and i < len(wire) - 1:
                 all_paths[(wire[i-1],wire[i])] = [qb_wire[i-1], qb_wire[i]]
@@ -2074,7 +2074,7 @@ def denseEmbed(source, write=False):
 
             # abort on failed placement
             if qbit is None:
-                print 'No placement of cell %s found' % str(cell)
+                print('No placement of cell {0} found'.format(cell))
                 raise
 
             # assign qubit and paths
@@ -2105,7 +2105,7 @@ def denseEmbed(source, write=False):
     killLog()
 
     if WRITE and write:
-        print 'writing solution',
+        print('writing solution',end='')
         try:
             if not (WRITE_PATH is None):
                 fname = WRITE_PATH
@@ -2125,7 +2125,7 @@ def denseEmbed(source, write=False):
                 writeSol(fp)
                 fp.close()
         except IOError as e:
-            print e.message
-            print 'Invalid filename: %s' % fname
+            print(e.message)
+            print('Invalid filename: {0}'.format(fname))
 
     return cell_map, paths
