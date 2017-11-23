@@ -710,7 +710,7 @@ class MainWindow(QtWidgets.QMainWindow):
         '''Prompt filename for embed file'''
 
         fname = self.getOpenFileName('Select Embedding File', self.embed_dir,
-                filter='EMBED (*.embed);; All files (*)')
+                'EMBED (*.embed);; All files (*)')
 
         if not fname:
             return
@@ -946,5 +946,5 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         return str(x)
 
-    def getExistingFileName(self, msg, rdir):
+    def getExistingDirectory(self, msg, rdir):
         return str(QtWidgets.QFileDialog.getExistingDirectory(self, msg, rdir))
