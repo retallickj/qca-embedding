@@ -217,7 +217,7 @@ def convert_to_parameters(h, J, subgraphs, edges, J_inner):
         for qbit in subgraph.nodes():
             hq[qbit] = h[node]*1./subgraph.number_of_nodes()/scale
         for q1, q2 in subgraph.edges():
-            Jq[(q1, q2)] = J_inner/scale
+            Jq[tuple(sorted((q1, q2)))] = J_inner/scale
 
     # handle inter-subgraph parameters
     nodes = sorted(subgraphs.keys())
@@ -227,7 +227,7 @@ def convert_to_parameters(h, J, subgraphs, edges, J_inner):
             n2 = nodes[j]
             if n2 in J[n1]:
                 for q1, q2 in edges[(n1, n2)]:
-                    Jq[(q1, q2)] = J[n1][n2]*1./len(edges[(n1, n2)])/scale
+                    Jq[tuple(sorted((q1, q2)))] = J[n1][n2]*1./len(edges[(n1, n2)])/scale
 
     return hq, Jq
 
