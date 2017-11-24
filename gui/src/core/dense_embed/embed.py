@@ -26,8 +26,8 @@ from . import routing as Routing
 ### GLOBALS ###
 
 # default Chimera parameters
-M = 8   # number of tile rows
-N = 8	  # number of tile columns
+M = 16    # number of tile rows
+N = 16	  # number of tile columns
 L = 4	  # number of qubits per half tile
 
 
