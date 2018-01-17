@@ -316,7 +316,7 @@ def layoutEmbed(configuration, stats):
     # Diffusion to make a denser clustering
     if VERBOSE: print("Diffusion")
     if DIFFUSION:
-        stats_diffusion = diffusion(Chimera, QCA, bins, tiles, configuration)
+        stats_diffusion = diffusion(QCA, bins, tiles, configuration)
         stats.update(stats_diffusion)
 
     # Return true if embedding was successful

@@ -27,6 +27,7 @@ try:
 except Exception as e:
     print('Could not load dense embedding method...')
     embedders['dense'] = False
+    print (traceback.print_exc())
 
 try:
     from layout_embed.embed import layoutEmbed, layoutConfiguration
@@ -41,9 +42,10 @@ try:
 except Exception as e:
     print('Could not load heuristic embedding method...')
     embedders['heur'] = False
+    print (traceback.print_exc())
 
 # echo available embedder methods
-print('Emedder options:')
+print('Embedder options:')
 for key, flag in embedders.iteritems():
     print('\t{0}:\t{1}'.format(key.upper(), 'Enabled' if flag else 'Disabled'))
 

@@ -20,8 +20,6 @@ import numpy as np
 from auxil import getEk, CELL_FUNCTIONS, CELL_MODES
 from itertools import combinations
 
-from pprint import pprint
-
 ## general global parameters
 
 R_MAX = 2.1         # max cell-cell interaction range (rel to grid spacing)

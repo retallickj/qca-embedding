@@ -89,8 +89,6 @@ def confChimeraGraph():
     
     global _Chimera
     
-    labels = {}
-    
     for node in _Chimera:
         
         # initialize empty set of cells assigned to qubit
@@ -104,9 +102,6 @@ def confChimeraGraph():
         row = node[0]
         col = node[1]
         _Chimera.nodes[node]['tile'] = (row, col)
-
-        # relabel _Chimera nodes de Q<i>
-        #labels[node] = 'Q' + str(tuple_to_linear(node,M,N)) 
         
         # NEGOTIATED CONGESTION    
         # historical cost
@@ -114,10 +109,6 @@ def confChimeraGraph():
         # Degree/2 (In directed graph)
         _Chimera.nodes[node]['degree'] = _Chimera.degree(node)/2
         
-    # relabel nodes Q<i> to avoid conflicts in routing graph F
-    #nx.relabel.relabel_nodes(_Chimera,labels, copy=False)
-    
-
 def confQCAGraph():
     '''
     
@@ -260,7 +251,6 @@ def getCandidates(cell):
                 candidate_tiles.extend([w_tile, s_tile, sw_tile])
 
     # Get qubits from tiles
-
     candidates = []
     # Add qubits from candidate tiles        
     for t in candidate_tiles:

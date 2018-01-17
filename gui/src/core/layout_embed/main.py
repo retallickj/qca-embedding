@@ -10,9 +10,9 @@ import sys
 import json
 import traceback
 import numpy as np
+import dwave_networkx as dnx
 from embed import layoutEmbed, layoutToModels
 from embed import layoutConfiguration, setProblem, setTarget
-from warnings import catch_warnings
 
 M = 8
 N = 8
