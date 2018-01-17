@@ -19,17 +19,18 @@ class Graph(nx.Graph):
 
     file_delim = ' '    # graph file delimiter
 
-    def __init__(self, fn=None, nb=0, mp=int):
+    def __init__(self, G=None, fn=None, nb=0, mp=int):
         '''Initialise a Graph instance. If fn is give, initializes the Graph
         from a graph file (see Graph.fromFile for details).
 
         parameters:
+            G   : optional nx.Graph to construct from
             fn  : filename
             nb  : number of header lines to burn before graph information
             mp  : map to apply to node labels
         '''
 
-        super(Graph, self).__init__()
+        super(Graph, self).__init__(G)
 
         if fn is not None:
             try:
@@ -42,7 +43,8 @@ class Graph(nx.Graph):
         '''Reset all data in the Graph'''
         super(Graph, self).clear()  # clear nx.Graph data
 
-    def fromFile(self, fn, nb=0, mp=int):
+
+    def from_file(self, fn, nb=0, mp=int):
         '''Populate graph from file. Each line of the file must be a tuple of the
         form '<i> <j> <val> <x> <y>' with only the first three arguments needed.
         If i==j, then val describes the node value and x and y are optional
@@ -66,28 +68,26 @@ class Graph(nx.Graph):
                 # burn header
                 for n in range(nb):
                     fp.readline()
-                self.__readFile(fp, mp)
+                self.__read_file(fp, mp)
         except IOError:
             print('Failed to read graph source file: {0}'.format(fn))
+
 
     def subgraph(self, nodes, copy=False):
         '''Return the sub-graph composed of the given list of nodes. The nodes
         in the subgraph are deep-copies of those of the full graph. The returned
-        graph is of the same type as the Graph derived class.'''
+        graph must be cast to the appropriate derived class.'''
 
         G0 = nx.Graph(super(Graph, self).subgraph(nodes))
-
-        # construct derived class and assign graph data
         G = self.__new__(type(self))
-        G.graph = G0.graph    # graph attributes
-        G.nodes = G0.nodes    # dict of node dicts
-        G.edges = G0.edges    # dict of edge dicts
+        G.__init__(G0)
 
         return G
 
+
     # private methods
 
-    def __readFile(self, fp, mp):
+    def __read_file(self, fp, mp):
         '''Read the node information from a file pointer
 
         inputs:
@@ -130,4 +130,4 @@ if __name__ == '__main__':
         sys.exit()
 
     G = Graph()
-    G.fromFile(fn, 1)
+    G.from_file(fn, 1)

@@ -61,12 +61,12 @@ _VALS = {'cx': 'cell_options.cxCell',
 class ParserNode:
     '''Nested Node structure for QCADesigner's specific html-like format'''
 
-    tag_charset = '[a-zA-Z0-9_:]'
-    val_charset = '[a-zA-Z0-9_\.\-\+]'
+    _tag_charset = '[a-zA-Z0-9_:]'
+    _val_charset = '[a-zA-Z0-9_\.\-\+]'
 
-    rgx_in  = re.compile('\[({0}+)\]'.format(tag_charset))      # start tag
-    rgx_out = re.compile('\[#({0}+)\]'.format(tag_charset))     # end tag
-    rgx_val = re.compile('({0}+)=({0}+)'.format(val_charset))   # key=val pair
+    _rgx_in  = re.compile('\[({0}+)\]'.format(_tag_charset))      # start tag
+    _rgx_out = re.compile('\[#({0}+)\]'.format(_tag_charset))     # end tag
+    _rgx_val = re.compile('({0}+)=({0}+)'.format(_val_charset))   # key=val pair
 
     def __init__(self, fp, tag=None):
         '''Build the nested node hierarchy from the current file pointer
@@ -82,14 +82,14 @@ class ParserNode:
         self.rgxm = None
 
         for line in fp:
-            if self.rgxMatch(self.rgx_in, line, 1):
+            if self._rgx_match(self._rgx_in, line, 1):
                 self.children.append(ParserNode(fp, tag=self.rgxm))
-            elif self.rgxMatch(self.rgx_out, line, 1):
+            elif self._rgx_match(self._rgx_out, line, 1):
                 if self.rgxm != self.tag:
                     print('tag mismatch: {0} :: {1}'.format(self.tag, self.rgxm))
                 break
             else:
-                m = self.rgx_val.match(line)
+                m = self._rgx_val.match(line)
                 if m.lastindex==2:
                     self.d[m.group(1)] = m.group(2)
 
@@ -98,7 +98,7 @@ class ParserNode:
         '''Get the keyed Node value'''
         return self.d[key] if key in self.d else None
 
-    def rgxMatch(self, rgx, s, n=0):
+    def _rgx_match(self, rgx, s, n=0):
         '''March s with an re pattern and store the n^th group'''
         m = rgx.match(s)
         self.rgxm = m.group(n) if (m and m.lastindex >= n) else None
@@ -121,7 +121,7 @@ class ParserNode:
         for child in self.children:
             child.echo(npad+1)
 
-    def getChild(self, tag):
+    def get_child(self, tag):
         '''Attempt to get the first child of the node with the given tag'''
 
         for child in self.children:
@@ -130,7 +130,7 @@ class ParserNode:
         else:
             return None
 
-    def extractAllNested(self, tag):
+    def extract_all_nested(self, tag):
         '''Get a list all Nodes at any depth below the node with the given
         tag. Will only find the firt instance of the tag in each branch'''
 
@@ -139,7 +139,7 @@ class ParserNode:
 
         nodes = []
         for child in self.children:
-            nodes += child.extractAllNested(tag)
+            nodes += child.extract_all_nested(tag)
         return nodes
 
     @staticmethod
@@ -185,7 +185,7 @@ class QCACircuit(Graph):
         self.__cellkeys = []    # sorting keys for self.cells
 
         # default cell value for sorting
-        self.metric = lambda c: (self.node[c]['y'], self.node[c]['x'])
+        self.metric = lambda c: (self.nodes[c]['y'], self.nodes[c]['x'])
 
         self.clists = {'normal': [], 'input': [], 'output': [], 'fixed': []}
 
@@ -194,14 +194,14 @@ class QCACircuit(Graph):
 
         # extract cell data from node structure
         if isinstance(head, ParserNode):
-            self.__fromHead(head)
+            self._from_head(head)
             self.vprint('Circuit information extracted from circuit parser')
         else:
             self.spacing = 1.
             self.vprint('No valid parser data found')
 
 
-    def addCell(self, x, y, scale=True, cf='normal', pol=0, rot=False):
+    def add_cell(self, x, y, scale=True, cf='normal', pol=0, rot=False):
         '''Add a new cell to the QCACircuit at the given location. No check is
         made for overlap with an existing cell.
 
@@ -233,11 +233,11 @@ class QCACircuit(Graph):
             cf = _CFs['fixed']
         rot = bool(rot)
 
-        dots = self.__toDots(x, y, rot, pol)
+        dots = self._to_dots(x, y, rot, pol)
 
-        self.__addCell(x, y, cf, pol, rot, dots)
+        self._add_cell(x, y, cf, pol, rot, dots)
 
-    def subgraphPn(self, adj=None, pn=None):
+    def subgraph_pn(self, adj=None, pn=None):
         '''Construct a subgraph excluding the input and fixed polarization cells.
         Node weights will be the cell biases for the given input index pn.
 
@@ -246,17 +246,17 @@ class QCACircuit(Graph):
             pn  : input polarization index
         '''
 
-        inds, h, J = self.computeCoefs(adj=adj, pn=pn)
+        inds, h, J = self.compute_coefs(adj=adj, pn=pn)
 
         G = nx.from_numpy_matrix(np.round(J,3))
         for k,(i,_h) in enumerate(zip(inds, h)):
-            c = self.node[self.cells[i]]
+            c = self.nodes[self.cells[i]]
             G.add_node(k, ind=i, weight=round(_h,3), x=c['x'], y=c['y'])
 
         return G
 
 
-    def computeCoefs(self, adj=None, pn=None, gam=None):
+    def compute_coefs(self, adj=None, pn=None, gam=None):
         '''compute the normalized coefficients for the current QCACircuit under
         the given adjacency type and input cell polarization index
 
@@ -283,7 +283,7 @@ class QCACircuit(Graph):
 
         # only want normal and output cell coefficients
         inds = [i for i,c in enumerate(self.cells)
-                    if self.node[c]['cf'] in [_CFs['normal'], _CFs['output']]]
+                    if self.nodes[c]['cf'] in [_CFs['normal'], _CFs['output']]]
         J = J[inds,:]
 
         # biases
@@ -292,9 +292,9 @@ class QCACircuit(Graph):
         # input cell polarizations
         pols = np.zeros([len(self),], dtype=float)
         for i in self.clists['fixed']:
-            pols[i] = self.node[self.cells[i]]['pol']
+            pols[i] = self.nodes[self.cells[i]]['pol']
         if isinstance(pn, int):
-            input_pols = self.intToPol(pn, len(self.clists['input']))
+            input_pols = self.int_to_pol(pn, len(self.clists['input']))
             for i, p in zip(self.clists['input'], input_pols):
                 pols[i] = p
 
@@ -312,11 +312,11 @@ class QCACircuit(Graph):
         self.clists = {'normal': [], 'input': [], 'output': [], 'fixed': []}
         cfmap = {n:k for k,n in _CFs.items()}
         for i, cell in enumerate(self.cells):
-            self.clists[cfmap[self.node[cell]['cf']]].append(i)
+            self.clists[cfmap[self.nodes[cell]['cf']]].append(i)
 
         self.vprint(pformat(self.clists))
 
-    def reorderCells(self, metric=None):
+    def reorder_cells(self, metric=None):
         '''reorder the cells by the given metric. The metric needs to take a
         QCACell and return some sortable value'''
 
@@ -335,7 +335,7 @@ class QCACircuit(Graph):
         self.__cellkeys = [self.metric(c) for c in self.cells]
 
     @staticmethod
-    def intToPol(n, l):
+    def int_to_pol(n, l):
         '''convert an integer into a polarization list of length L'''
 
         assert isinstance(l, int), 'Invalid binary size type'
@@ -345,13 +345,13 @@ class QCACircuit(Graph):
 
     # internal methods
 
-    def __fromHead(self, head):
+    def _from_head(self, head):
         '''Load the QCACircuit from the head Node of a parsed QCADesigner file'''
 
-        design = head.getChild(_TAGS['design'])
+        design = head.get_child(_TAGS['design'])
         assert design is not None, 'Invalid QCADesigner file format'
 
-        cell_nodes = head.extractAllNested(_TAGS['cell'])
+        cell_nodes = head.extract_all_nested(_TAGS['cell'])
         assert len(cell_nodes)>0, 'Empty QCADesigner file'
 
         # get cell-cell spacing
@@ -360,14 +360,14 @@ class QCACircuit(Graph):
 
         # extract cell content
         for node in cell_nodes:
-            self.__addFromNode(node)
+            self._add_from_node(node)
 
-    def __addFromNode(self, node):
+    def _add_from_node(self, node):
         '''Extract cell parameters from a ParserNode describing a QCACell and
         add the cell to the QCACircuit'''
 
         # cell position from the cell's design object
-        cell_obj = node.getChild(_TAGS['cell_obj'])
+        cell_obj = node.get_child(_TAGS['cell_obj'])
         if cell_obj is None:
             return None
         x, y = [float(cell_obj[k]) for k in ['x', 'y']]
@@ -376,7 +376,7 @@ class QCACircuit(Graph):
         cf = _QCAD_CFs[node[_VALS['cf']]]
 
         # quantum dot locations
-        dots = node.extractAllNested(_TAGS['dot'])
+        dots = node.extract_all_nested(_TAGS['dot'])
         assert len(dots)==4, 'Invalid dot layout'
 
         dots = [self.QCADot(float(d['x']), float(d['y']), float(d['charge'])/self.Q0) for d in dots]
@@ -384,9 +384,9 @@ class QCACircuit(Graph):
         pol = round((dots[0].q+dots[2].q-dots[1].q-dots[3].q)/2, 5)
         rot = len(set(round(d.x, 2) for d in dots))==3
 
-        self.__addCell(x, y, cf, pol, rot, dots)
+        self._add_cell(x, y, cf, pol, rot, dots)
 
-    def __addCell(self, x, y, cf, pol, rot, dots):
+    def _add_cell(self, x, y, cf, pol, rot, dots):
         '''handler for adding a new cell to the circuit'''
 
         n = len(self)
@@ -394,13 +394,13 @@ class QCACircuit(Graph):
 
         # add the interactions (edges)
         for m in self.cells:
-            Ek = self.__computeEk(m, n)
+            Ek = self._compute_Ek(m, n)
             if Ek:
                 self.add_edge(n, m, weight=-Ek)
 
-        self.__insort(n)
+        self._insort(n)
 
-    def __toDots(self, x, y, rot, pol):
+    def _to_dots(self, x, y, rot, pol):
         '''Compute suitable dots for the given QCACell parameters'''
 
         # dot locations
@@ -416,11 +416,11 @@ class QCACircuit(Graph):
 
         return [self.QCADot(x, y, q) for x,y,q in zip(X,Y,Q)]
 
-    def __computeEk(self, k1, k2):
+    def _compute_Ek(self, k1, k2):
         '''Compute the kink energy between two QCACells. Computation is only
         up to a normalization constant.'''
 
-        c1, c2 = [self.node[k] for k in [k1,k2]]
+        c1, c2 = [self.nodes[k] for k in [k1,k2]]
 
         # distance between cells
         if pow(c2['x']-c1['x'],2)+pow(c2['y']-c1['y'],2) > pow(self.R0*self.spacing,2):
@@ -443,11 +443,11 @@ class QCACircuit(Graph):
 
         return Ek
 
-    def __insort(self, k):
+    def _insort(self, k):
         '''Insert node k into the sorted list of cells'''
 
         assert k in self, 'Invalid cell name'
-        cell = self.node[k]
+        cell = self.nodes[k]
 
         key = self.metric(k)                        # sorting key
         ind = bisect.bisect(self.__cellkeys, key)   # insert location
@@ -459,7 +459,7 @@ class QCACircuit(Graph):
     # adjacency masks
 
     @staticmethod
-    def identifyInters(A, inv=True):
+    def identify_inters(A, inv=True):
         '''Identify either all inverter or xover interactions from the
         interaction array'''
 
@@ -477,7 +477,7 @@ class QCACircuit(Graph):
                 out[i].append(j)
         return out
 
-    def __cellInteractions(self):
+    def _cell_interactions(self):
         '''Characterise all the cell-cell interactions. Used by the masks:
 
         0   : no interaction, rot-nrot
@@ -489,8 +489,8 @@ class QCACircuit(Graph):
 
         '''
 
-        X = np.array([self.node[c]['x'] for c in self.cells]).reshape([-1,1])
-        Y = np.array([self.node[c]['y'] for c in self.cells]).reshape([-1,1])
+        X = np.array([self.nodes[c]['x'] for c in self.cells]).reshape([-1,1])
+        Y = np.array([self.nodes[c]['y'] for c in self.cells]).reshape([-1,1])
 
         DX = np.abs(X.T-X)/self.spacing
         DY = np.abs(Y.T-Y)/self.spacing
@@ -500,7 +500,7 @@ class QCACircuit(Graph):
         zeq = lambda x,y : abs(x-y)<0.2     # approximate equality: |x-y| < 0.2
 
         for i,j in combinations(range(A.shape[0]),2):
-            c1, c2 = [self.node[self.cells[k]] for k in [i,j]]
+            c1, c2 = [self.nodes[self.cells[k]] for k in [i,j]]
             dx, dy = DX[i,j], DY[i,j]
             if zeq(min(dx,dy), .5) and zeq(max(dx,dy), 1):  A[i,j] = 3
             elif c1['rot'] != c2['rot']:                    A[i,j] = 0
@@ -531,29 +531,29 @@ class QCACircuit(Graph):
     def __fullMask(self):
         '''Keep up to diagonal and xover interactions'''
 
-        A = self.__cellInteractions()
-        xovers = self.identifyInters(A, inv=False)
+        A = self._cell_interactions()
+        xovers = self.identify_inters(A, inv=False)
         crit = lambda i,j: j in xovers[i] or A[i,j] in [1, -1, 3]
         return self.__maskFill(crit=crit)
 
     def __limMask(self):
         '''Keep up to necssary inverting and xover interactions'''
 
-        A = self.__cellInteractions()
-        xovers = self.identifyInters(A, inv=False)
-        invs = self.identifyInters(A, inv=True)
+        A = self._cell_interactions()
+        xovers = self.identify_inters(A, inv=False)
+        invs = self.identify_inters(A, inv=True)
         crit = lambda i,j: j in xovers[i]+invs[i] or A[i,j] in [1, 3]
         return self.__maskFill(crit=crit)
 
 
     # echoing
 
-    def echoCells(self, dots=False):
+    def echo_cells(self, dots=False):
         for cell in self.cells:
-            self.echoCell(self.node[cell], dots=dots)
+            self.echo_cell(self.nodes[cell], dots=dots)
 
     @classmethod
-    def echoCell(cls, cell, dots=False):
+    def echo_cell(cls, cell, dots=False):
         cfmap = {k:i for i,k in cls.CFs.items()}
         print('Cell:  x:{0:>6.2f}  ::  y:{1:>6.2f} \t {2:<10} pol:{3:>6.2f} \t rot:{4}'.format(
                     cell['x'], cell['y'], cfmap[cell['cf']], cell['pol'], cell['rot']))
@@ -577,7 +577,10 @@ if __name__ == '__main__':
 
     circuit = QCACircuit(fname=fn, verbose=False)
 
-    G = circuit.subgraphPn(adj='full', pn=0)
+    G = circuit.subgraph_pn(adj='full', pn=2)
 
-    pprint(G.node)
-    pprint(G.edge)
+    for n, d in G.nodes.items():
+        print(n, d)
+
+    for e, d in G.edges.items():
+        print(e, d)
