@@ -11,7 +11,7 @@
 from __future__ import division
 
 from bisect import bisect
-from random import random, shuffle
+import random
 from copy import copy as cp
 import numpy as np
 import sys
@@ -22,8 +22,13 @@ import itertools
 import routing as Routing
 
 
+
 #######################################################################
 ### GLOBALS ###
+
+# fixed seed for deterministic results
+SEED = 4
+rand = None 
 
 # default Chimera parameters
 M = 8   # number of tile rows
@@ -366,6 +371,7 @@ def setChimera(chimera_adj, m, n, l):
 
     outputs: none
     '''
+    global rand
 
     global _qbitAdj, M, N, L
     
@@ -376,6 +382,8 @@ def setChimera(chimera_adj, m, n, l):
     # sort each keyed list
     for key in _qbitAdj:
         _qbitAdj[key].sort()
+
+    rand = random.Random(SEED)
 
 
 # checked
@@ -463,7 +471,7 @@ def firstCell(M1=False):
         # determine how many cells have the maximum worth
         num_max = worth.values().count(worth[order[0]])
         # randomly select one of these cells
-        i = int(random()*num_max)
+        i = int(rand.random()*num_max)
         cell = order[i]
         log('done\n')
 
@@ -481,7 +489,7 @@ def firstCell(M1=False):
             probs[key] /= total_prob
             comps.append(comps[-1]+probs[key])
         # randomly select starting key
-        i = max(bisect(comps, random()), 1)
+        i = max(bisect(comps, rand.random()), 1)
 
         cell = order[i-1]
         log('done\n')
@@ -512,13 +520,13 @@ def firstQubit(cell, M1=False):
         tiles = [(_n, _m) for _n in n for _m in m]
 
         # shuffle tiles
-        shuffle(tiles)
+        rand.shuffle(tiles)
 
         for tile in tiles:
             r, c = tile
             # try to find suitable qubit
             order = [(h, i) for h in xrange(2) for i in xrange(L)]
-            shuffle(order)
+            rand.shuffle(order)
             for h, i in order:
                 qbit = (r, c, h, i)
                 if len(_qbitAdj[qbit]) >= adj:
@@ -560,11 +568,11 @@ def firstQubit(cell, M1=False):
         while attempt < FIRST_QBIT_ATTEMPTS:
             attempt += 1
             # pick tile
-            r = max(bisect(CDF[0], random()), 1)-1
-            c = max(bisect(CDF[1], random()), 1)-1
+            r = max(bisect(CDF[0], rand.random()), 1)-1
+            c = max(bisect(CDF[1], rand.random()), 1)-1
             # pick qubit
             order = [(h, i) for h in xrange(2) for i in xrange(L)]
-            shuffle(order)
+            rand.shuffle(order)
             for h, i in order:
                 qbit = (r, c, h, i)
                 if len(_qbitAdj[qbit]) >= adj:
@@ -1563,7 +1571,7 @@ def selectSeam(seam_dicts):
 
     cands = filter(lambda x: x['cost'] == seams[0]['cost'], seams)
 
-    return cands[int(random()*len(cands))]
+    return cands[int(rand.random()*len(cands))]
 
 
 # NEW METHODS FOR WIRE SHORTENING

@@ -162,7 +162,13 @@ def extendChain(ch, start=True):
 
     i = 0 if start else 1
 
-    while len(_adj[ch[i]]) == 2:
+    in_wire = lambda x: len(_adj[x]) == 2 
+
+    # Ears are K_3 subgraphs with only one vertex connected to another vertex not in K_3
+    in_ear = lambda x: len(set(_adj[x[0]]) & set(_adj[x[1]])) > 0 
+
+
+    while in_wire(ch[i]) and not in_ear(ch):
 
         # assert _end_occ consistency
         n = len(_end_occ[ch[i]])
