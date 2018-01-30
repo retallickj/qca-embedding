@@ -56,26 +56,27 @@ class QubitPars:
 # logging
 
 class Logger:
-    ''''''
+    '''Handler for writing the embedder status to either stdout or a log file'''
 
     def __init__(self, fn=None, append=False):
         '''Attempt to initialise a Logger instance for the given log file path.
         If no filepath is given, outputs to stdout.'''
 
         self.fn = fn
+        self.fp = None
         self.append = bool(append)
 
-    def begin(self):
-        '''Begin the log'''
+    def start(self):
+        '''Start the log'''
 
         if self.fn is None:
-            return
-
-        try:
-            self.fp = open(self.fn, 'a' if self.append else 'w')
-        except:
-            print('Failed to open logger for file: {0}'.format(self.fn))
             self.fp = None
+        else:
+            try:
+                self.fp = open(self.fn, 'a' if self.append else 'w')
+            except:
+                print('Failed to open logger for file: {0}'.format(self.fn))
+                self.fp = None
 
     def end(self):
         '''End the log'''
@@ -117,25 +118,24 @@ class DenseEmbedder:
 
     MAX_SEARCH_COUNT = 3    # maximum number of multisource search attempts
 
-    def __init__(self, chimera=None, logger=None):
+    def __init__(self, chimera=None, logfile=None, append=False):
         '''Initialise a DenseEmbedder instance.
 
         parameters:
             chimera : optional Chimera graph
+            logfile : optional filename if verbose status written to a log
+            append  : True if should append log to logfile
         '''
 
-        self.set_logger(logger)
+        self.set_logger(logfile, append)
 
         if chimera is not None:
             self.set_chimera(chimera)
 
-    def set_logger(self, logger):
-        '''Override the log write'''
+    def set_logger(self, logfile=None, append=False):
+        '''Override the logger'''
 
-        try:
-
-        except:
-            self.log = lambda *a, **k: None
+        self._logger = Logger(logfile, append)
 
     def set_chimera(self, chimera):
         '''Update the Chimera graph for the Embedder
@@ -167,7 +167,7 @@ class DenseEmbedder:
             source  : source graph, can be any networkx.Graph or derived
 
         kwargs:
-            verbose : if True, verbose output for the embedding
+            verbose : if True, verbose logging for the embedding
             ntrials : number of embedding attempts
             best    : if True, return only the most economical embedding
         '''
@@ -178,11 +178,13 @@ class DenseEmbedder:
         best = dget(kwargs, 'best', False, mp=bool)
 
         # validate optional arguments
-        self.vprint = print if dget(kwargs, 'verbose', False) else lambda *a, **k: None
+        self.vlog = self.log if verbose else lambda *a, **k: None
 
         # initialize solver for source graph
-        if not self._initialise(source):
-            raise PlacementError('Failed to initialse from source')
+        try:
+            self._initialise(source):
+        except SourceError:
+            return []
 
         # main loop
         solutions = []
@@ -209,10 +211,17 @@ class DenseEmbedder:
     def _initialise(self, source):
         '''Prepare the Embedder for the given source adjacency graph'''
 
+        # start the Logger
+        self._logger.start()
+
+        self.vlog('Initialising embedder for source graph...')
+
         # check source
         if not self._check_source(source):
             raise SourceError('Invalid source graph')
         self.source = source
+
+        self.vlog('done')
 
 
     def _reset(self):
@@ -334,7 +343,9 @@ class DenseEmbedder:
     def log(self, s):
         '''Write the given string to the logger'''
         try:
-            self.logger.log(s)
+            self._logger.log(s)
+        except:
+            pass
 
     @staticmethod
     def _check_source(source):
