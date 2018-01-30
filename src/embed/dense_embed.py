@@ -11,9 +11,10 @@ from __future__ import print_function   # for verbose functionality
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
-__date__        = '2018-01-22'      # last update
+__date__        = '2018-01-30'      # last update
 
 from ..core.utility import dget
+import .logger as lg
 import networkx as nx
 import numpy as np
 
@@ -30,25 +31,8 @@ class SourceError(Exception):
     '''Custom Exception for problems with the source graph'''
     pass
 
-class Logger:
-    '''Base Class for status Loggers. '''
 
-    def __init__(self):
-        ''' '''
-        pass
-
-    def begin(self):
-        '''Begin the log'''
-        pass
-
-    def end(self):
-        '''Close the log'''
-        pass
-
-    def log(self, s, end='\n'):
-        '''Write the given string to the log'''
-        pass
-
+# structs
 
 class CellPars:
     '''All relevant parameters for a given cell during embedding'''
@@ -68,6 +52,46 @@ class QubitPars:
     c_in = set()        # set of free internal qubits
     c_out = -1          # number of free external qubits
     paths = set()       # paths containing the qubit
+
+# logging
+
+class Logger:
+    ''''''
+
+    def __init__(self, fn=None, append=False):
+        '''Attempt to initialise a Logger instance for the given log file path.
+        If no filepath is given, outputs to stdout.'''
+
+        self.fn = fn
+        self.append = bool(append)
+
+    def begin(self):
+        '''Begin the log'''
+
+        if self.fn is None:
+            return
+
+        try:
+            self.fp = open(self.fn, 'a' if self.append else 'w')
+        except:
+            print('Failed to open logger for file: {0}'.format(self.fn))
+            self.fp = None
+
+    def end(self):
+        '''End the log'''
+
+        if self.fp is not None:
+            self.fp.close()
+
+    def log(self, s):
+        '''Write the given string to the log. No endline is added.'''
+
+        if self.fp is not None:
+            self.fp.write(s)
+        else:
+            print(s, end='')
+
+# main embedder class
 
 class DenseEmbedder:
     '''Handler class for running the dense placement embedding algorithm.
@@ -100,12 +124,18 @@ class DenseEmbedder:
             chimera : optional Chimera graph
         '''
 
+        self.set_logger(logger)
+
         if chimera is not None:
             self.set_chimera(chimera)
 
     def set_logger(self, logger):
         '''Override the log write'''
-        pass
+
+        try:
+
+        except:
+            self.log = lambda *a, **k: None
 
     def set_chimera(self, chimera):
         '''Update the Chimera graph for the Embedder
@@ -215,6 +245,7 @@ class DenseEmbedder:
 
         self.log('Attempting to select first cell')
 
+
         self.log('done')
 
     def _assign_qbit(self, cell, qbit):
@@ -300,7 +331,10 @@ class DenseEmbedder:
         # post processing
         pass
 
-
+    def log(self, s):
+        '''Write the given string to the logger'''
+        try:
+            self.logger.log(s)
 
     @staticmethod
     def _check_source(source):
