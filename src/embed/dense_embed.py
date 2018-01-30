@@ -15,6 +15,7 @@ __date__        = '2018-01-22'      # last update
 
 from ..core.utility import dget
 import networkx as nx
+import numpy as np
 
 
 # exceptions
@@ -200,11 +201,21 @@ class DenseEmbedder:
 
     def _first_cell(self):
         '''Pick the first cell to place'''
-        pass
+
+        self.log('Selecting first cell...')
+        keys = self._cps.keys()
+        worth = lambda key: pow(self._cps[key].nadj, self.FIRST_PROB_POW)
+        probs = np.array([worth(key) for key in keys])
+        cell = np.random.choice(keys, p=probs)
+        self.log('done')
+
 
     def _first_qbit(self, cell):
         '''Find the qubit seed for the first cell'''
-        pass
+
+        self.log('Attempting to select first cell')
+
+        self.log('done')
 
     def _assign_qbit(self, cell, qbit):
         '''Associate the given qubit and cell'''
