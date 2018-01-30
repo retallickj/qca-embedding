@@ -10,8 +10,8 @@ __copyright__   = 'MIT License'
 __version__     = '2.0'
 __date__        = '2017-11-28'  # last significant update
 
-from graph import Graph
-from utility import range_product, dget
+from .graph import Graph
+from .utility import range_product, dget
 
 from numpy import sqrt, ceil
 from numpy.random import choice

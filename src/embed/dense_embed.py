@@ -13,8 +13,7 @@ __copyright__   = 'MIT License'
 __version__     = '2.0'
 __date__        = '2018-01-30'      # last update
 
-from ..core.utility import dget
-import .logger as lg
+from core.utility import dget
 import networkx as nx
 import numpy as np
 
@@ -148,15 +147,16 @@ class DenseEmbedder:
 
         # check that graph is valid
         mins, maxs, L = self._check_chimera(chimera)
-        if lmax:
+        if L is None:
             print('Invalid chimera format')
             return
 
         # store chimera and properties
         self.chimera = chimera
         self.origin = mins                              # top-left tile
-        self.span = [1+b-a for a,b in zip(mins, maxs)]  # number of columns/rows
+        self.M, self.N = [1+b-a for a,b in zip(mins, maxs)]
         self.L = L
+        print(self.M, self.N, self.L)
 
 
     def embed(self, source, **kwargs):
@@ -182,7 +182,7 @@ class DenseEmbedder:
 
         # initialize solver for source graph
         try:
-            self._initialise(source):
+            self._initialise(source)
         except SourceError:
             return []
 
@@ -361,7 +361,7 @@ class DenseEmbedder:
             assert max(d for n,d in source.degree()) <= self.L+2, \
                 'source must have maximum degree of L+2'
             return True
-    except AssertionError as e:
+        except AssertionError as e:
             print('Invalid source: {0}'.format(e.message))
             return False
 
@@ -386,6 +386,7 @@ class DenseEmbedder:
             mins, maxs = [0,0], [0,0]   # range of m,n values
             lmax = -1                   # largest l value
             for node, tup in chimera.nodes('tup'):
+                assert tup is not None, 'Missing tup parameter'
                 assert isinstance(tup[0], int) and tup[0]>=0, 'Invalid tile m'
                 assert isinstance(tup[1], int) and tup[1]>=0, 'Invalid tile n'
                 assert isinstance(tup[3], int) and tup[3]>=0, 'Invalid tile l'
@@ -395,5 +396,6 @@ class DenseEmbedder:
             assert min(mins) >= 0, 'Invalid tile range'
             assert lmax >= 0, 'Invalid l range'
             return mins, maxs, lmax+1
-        except AssertionError:
+        except AssertionError as e:
+            print(e.message)
             return (None,)*3
