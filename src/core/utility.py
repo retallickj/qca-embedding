@@ -33,7 +33,7 @@ def range_product(*counts):
         yield x
 
 
-def dget(dict_, key, default=None, mp=lambda x:x):
+def dget(dict_, key, default=None, mp=lambda x:x, chk=lambda x: True):
     '''Defaulted accessor for dictionary elements with an optional mapping.
 
     inputs:
@@ -41,6 +41,7 @@ def dget(dict_, key, default=None, mp=lambda x:x):
         key     : dictionary key
         default : default value if key is not found in the dictionary
         mp      : map to apply to dictionary value if found
+        chk     : check statement that must be passed else default
 
     usage:
 
@@ -49,4 +50,11 @@ def dget(dict_, key, default=None, mp=lambda x:x):
     dget(d, 'a', 0, int)    # returns int('5')
     dget(d, 'b', 'foo')     # returns 'foo'
     '''
-    return mp(dict_[key]) if key in dict_ else default
+    if key in dict_:
+        x = mp(dict_[key])
+        return x if chk(x) else default
+    return default
+
+def bounded(n, lo, hi):
+    '''Check if lo <= n <= hi'''
+    return n>=lo and n<=hi
