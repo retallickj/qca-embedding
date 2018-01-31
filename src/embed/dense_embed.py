@@ -14,6 +14,7 @@ __version__     = '2.0'
 __date__        = '2018-01-30'      # last update
 
 from core.utility import dget, range_product
+from collections import defaultdict
 import networkx as nx
 import numpy as np
 
@@ -255,8 +256,9 @@ class DenseEmbedder:
         # set up qubit parameters
         self._qps = {qbit: QubitPars() for qbit in self.chimera}
 
-        # paths between cell qubits
-        self._paths = {}
+        self._paths = {}    # paths between cell qubits
+        self._tile_occ = {k: defaultdict(int) for k in 'mn'}    # qubits per row/col
+        self._vacancy = [-1,]*4     # number of free cols/rows of tiles [L,R,D,U]
 
         self.vlog('done\n')
 
@@ -302,10 +304,37 @@ class DenseEmbedder:
                     return qbit
 
         self.log('failed all {0} attempts\n'.format(self.FIRST_QBIT_ATTEMPTS))
+        return None
 
     def _assign_qbit(self, cell, qbit):
         '''Associate the given qubit and cell'''
-        pass
+
+        # decrement nadj for all adjacent cells
+        for neigh in self.source.neighbors(cell):
+            self._cps[neigh].nadj -= 1
+
+        # associate cell and qubit
+        self._cps[cell].qbit = qbit
+        self._qps[qbit].cell = cell
+
+        # update tile_occ and vacancy
+        if not self._qps[qbit].reserved:    # not already counted
+            self._update_tile_occ([qbit])
+            self._set_vacancy()
+
+        # update parameters
+        self._cps[cell].placed = True
+        self._qps[qbit].taken = True
+        self._qps[qbit].assigned = True
+
+        # make adjacent qubits aware of placed cell (for reserve check)
+        for qb in self.chimera.neighbors(qbit):
+            self._qps[qbit].prox.add(qbit)
+
+        # disable qubit from Routing framework
+        Routing.disable_qubits([qbit])
+
+
 
     def _assign_paths(self, paths):
         '''Set all relevant flags for the given routed paths'''
@@ -327,6 +356,29 @@ class DenseEmbedder:
         '''
         pass
 
+    def _update_tile_occ(self, qbits, dec=False):
+        '''Either add or remove the set of qubits from the tile row/col
+        occupancy tally'''
+
+        x = -1 if dec else -
+        for qb in qbits:
+            self._tile_occ['m'][qb[0]] += x
+            self._tile_occ['n'][qb[1]] += x
+
+    def _set_vacancy(self):
+        '''Update the number of free rows/cols from the tile occupancy'''
+
+        # compute left/right vacancy
+        left = min(k for k,c in self._tile_occ['n'].items() if c>0))
+        right = max(k for k,c in self._tile_occ['n'].items() if c>0))
+        left,right = [x - self.origin[1] for x in [left,right]]
+
+        # compute down/up vacancy
+        down = min(k for k,c in self._tile_occ['m'].items() if c>0))
+        up = max(k for k,c in self._tile_occ['m'].items() if c>0))
+        down,up = [x - self.origin[0] for x in [down,up]]
+
+        self._vacancy = [left, right, down ,up]
 
     def _embed_trial(self):
         '''Run a single embedding trial'''
@@ -337,12 +389,8 @@ class DenseEmbedder:
         # attempt to find initial seed
         for init_trial in range(self.INIT_TRIALS):
             cell = self._first_cell()       # seed cell
-            try:
-                qbit = self._first_qbit(cell)   # seed qbit
-            except Exception as e:
-                print(e.message)
-                raise
-            if qbit:
+            qbit = self._first_qbit(cell)   # seed qbit
+            if qbit is None:
                 break
         else:
             raise PlacementError('Failed to place initial seed')
