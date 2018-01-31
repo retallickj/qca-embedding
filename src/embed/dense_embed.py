@@ -13,7 +13,7 @@ __copyright__   = 'MIT License'
 __version__     = '2.0'
 __date__        = '2018-01-30'      # last update
 
-from core.utility import dget
+from core.utility import dget, range_product
 import networkx as nx
 import numpy as np
 
@@ -33,17 +33,29 @@ class SourceError(Exception):
 
 # structs
 
+def _echo_struct(T, delim=' :: '):
+    '''Read out all the class and instance variables of a class as name=val pairs'''
+    return delim.join('{0}={1}'.format(attr, getattr(T, attr)) for attr in dir(T)
+                if not callable(getattr(T, attr)) and not attr.startswith('__'))
+
 class CellPars:
     '''All relevant parameters for a given cell during embedding'''
+
     qbit = None     # qbit assigned to the cell, None if no qbit assigned
     placed = False  # True if cell has been placed
     nadj = -1       # current number of unplaced adjacent cells
+
     def __init__(self, nadj=None):
         if isinstance(nadj, int) and nadj >= 0:
             self.nadj = nadj
 
+    def __str__(self):
+        return _echo_struct(self)
+
+
 class QubitPars:
     '''All relevant parameters for a given qubit during embedding'''
+
     cell = None         # cell the qubit is assigned to, else None
     reserved = False    # qbit is reserved for pending adjacency
     taken = False       # qbit taken for routing
@@ -51,6 +63,9 @@ class QubitPars:
     c_in = set()        # set of free internal qubits
     c_out = -1          # number of free external qubits
     paths = set()       # paths containing the qubit
+
+    def __str__(self):
+        return _echo_struct(self)
 
 # logging
 
@@ -100,7 +115,7 @@ class DenseEmbedder:
 
     # seeding parameters
     INIT_TRIALS = 5         # number of attempts to find initial seed per trial
-    FIRST_PROB_POW = 4      # power for firstCell method
+    FIRST_PROB_POW = 4.     # power for firstCell method
     FIRST_QBIT_SIG = .3     # gaussian dist. range for tile select
     FIRST_QBIT_ATTEMPTS = 5 # number of attempt to find starting qubit
 
@@ -130,6 +145,8 @@ class DenseEmbedder:
 
         if chimera is not None:
             self.set_chimera(chimera)
+        else:
+            self.chimera = None
 
     def set_logger(self, logfile=None, append=False):
         '''Override the logger'''
@@ -152,12 +169,10 @@ class DenseEmbedder:
             return
 
         # store chimera and properties
-        self.chimera = chimera
-        self.origin = mins                              # top-left tile
+        self.chimera = self._remap_chimera(chimera)
+        self.origin = mins          # top-left tile
         self.M, self.N = [1+b-a for a,b in zip(mins, maxs)]
         self.L = L
-        print(self.M, self.N, self.L)
-
 
     def embed(self, source, **kwargs):
         '''Attempt to find an embedding of the given source graph onto the
@@ -171,6 +186,11 @@ class DenseEmbedder:
             ntrials : number of embedding attempts
             best    : if True, return only the most economical embedding
         '''
+
+        # check that chimera is defined
+        if self.chimera is None:
+            print('Chimera Graph has not been specified')
+            return []
 
         # handle default arguments
         verbose = dget(kwargs, 'verbose', False, mp=bool)
@@ -214,48 +234,74 @@ class DenseEmbedder:
         # start the Logger
         self._logger.start()
 
-        self.vlog('Initialising embedder for source graph...')
+        self.vlog('Initialising embedder for source graph... ')
 
         # check source
         if not self._check_source(source):
             raise SourceError('Invalid source graph')
         self.source = source
 
-        self.vlog('done')
+        self.vlog('done\n')
 
 
     def _reset(self):
         '''Reset the Embedder for a new trial'''
 
+        self.vlog('Resetting embedder... ')
+
         # set up cell parameters
         self._cps = {cell: CellPars(deg) for cell, deg in self.source.degree()}
 
         # set up qubit parameters
-        # NOTE: may have to use tuple keys rather than the qbit labels
         self._qps = {qbit: QubitPars() for qbit in self.chimera}
 
         # paths between cell qubits
         self._paths = {}
 
+        self.vlog('done\n')
+
 
     def _first_cell(self):
         '''Pick the first cell to place'''
 
-        self.log('Selecting first cell...')
+
+        self.log('Selecting first cell... ')
         keys = self._cps.keys()
         worth = lambda key: pow(self._cps[key].nadj, self.FIRST_PROB_POW)
-        probs = np.array([worth(key) for key in keys])
-        cell = np.random.choice(keys, p=probs)
-        self.log('done')
+        probs = np.array([worth(key) for key in keys], dtype=float)
+        cell = np.random.choice(keys, p=probs/np.sum(probs))
+        self.log('done\n')
+
+        return cell
 
 
     def _first_qbit(self, cell):
         '''Find the qubit seed for the first cell'''
 
-        self.log('Attempting to select first cell')
+        self.log('Attempting to select first qubit... ')
 
+        # 1D Gaussian PDFs for each tile axis
+        X = [x0+np.arange(k) for x0, k in zip(self.origin, [self.M, self.N])]
+        Z = [np.linspace(-.5*(k-1), .5*(k-1), k) for k in [self.M, self.N]]
+        PDFs = [np.exp(-z*z/(2*self.FIRST_QBIT_SIG)) for z in Z]
+        PDFs = [pdf/np.sum(pdf) for pdf in PDFs]
 
-        self.log('done')
+        # make attempts to pick first qubit
+        Chim = self.chimera     # shorthand
+        for attempt in range(self.FIRST_QBIT_ATTEMPTS):
+            # pick tile according to the PDFs
+            m,n = [np.random.choice(x, p=pdf) for x,pdf in zip(X,PDFs)]
+            # randomly loop through qubits in tile to check if any have enough
+            # neighbours to satisfy cell connectivity
+            order = [(h,l) for h,l in range_product(2, self.L)]
+            np.random.shuffle(order)
+            for h,l in order:
+                qbit = (m,n,h,l)
+                if qbit in Chim and Chim.degree(qbit) >= self._cps[cell].nadj:
+                    self.log('done\n')
+                    return qbit
+
+        self.log('failed all {0} attempts\n'.format(self.FIRST_QBIT_ATTEMPTS))
 
     def _assign_qbit(self, cell, qbit):
         '''Associate the given qubit and cell'''
@@ -291,7 +337,11 @@ class DenseEmbedder:
         # attempt to find initial seed
         for init_trial in range(self.INIT_TRIALS):
             cell = self._first_cell()       # seed cell
-            qbit = self._first_qbit(cell)   # seed qbit
+            try:
+                qbit = self._first_qbit(cell)   # seed qbit
+            except Exception as e:
+                print(e.message)
+                raise
             if qbit:
                 break
         else:
@@ -347,8 +397,7 @@ class DenseEmbedder:
         except:
             pass
 
-    @staticmethod
-    def _check_source(source):
+    def _check_source(self, source):
         '''Check that a source graph is formatted correctly and contains all
         necessary information. A valid source graph must be connected and have
         maximum degree L+2'''
@@ -399,3 +448,11 @@ class DenseEmbedder:
         except AssertionError as e:
             print(e.message)
             return (None,)*3
+
+    @staticmethod
+    def _remap_chimera(chimera):
+        '''Make a shallow copy of the Chimera graph and change all the names of
+        the nodes to the 4-tuple'''
+
+        mapping = lambda x: tuple(chimera.node[x]['tup'])
+        return nx.relabel_nodes(chimera, mapping)
