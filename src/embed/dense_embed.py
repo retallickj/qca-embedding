@@ -34,9 +34,9 @@ class SourceError(Exception):
 
 # structs
 
-def _echo_struct(T, delim=' :: '):
+def echo_struct(T, sep=' :: '):
     '''Read out all the class and instance variables of a class as name=val pairs'''
-    return delim.join('{0}={1}'.format(attr, getattr(T, attr)) for attr in dir(T)
+    return sep.join('{0}={1}'.format(attr, getattr(T, attr)) for attr in dir(T)
                 if not callable(getattr(T, attr)) and not attr.startswith('__'))
 
 class CellPars:
@@ -51,7 +51,7 @@ class CellPars:
             self.nadj = nadj
 
     def __str__(self):
-        return _echo_struct(self)
+        return echo_struct(self)
 
 
 class QubitPars:
@@ -66,7 +66,7 @@ class QubitPars:
     paths = set()       # paths containing the qubit
 
     def __str__(self):
-        return _echo_struct(self)
+        return echo_struct(self)
 
 # logging
 
