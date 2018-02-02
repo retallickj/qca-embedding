@@ -153,6 +153,9 @@ class DenseEmbedder:
 
         self._router = Router()
 
+        # setup for all possible extender algorithms
+        self.extenders = {'dijkstra': self._extend_dijkstra}
+
     def set_logger(self, logfile=None, append=False):
         '''Override the logger'''
 
@@ -233,6 +236,8 @@ class DenseEmbedder:
             return solutions
 
 
+    # internal methods
+
     def _initialise(self, source):
         '''Prepare the Embedder for the given source adjacency graph'''
 
@@ -251,7 +256,6 @@ class DenseEmbedder:
 
         self.vlog('done\n')
 
-
     def _reset(self):
         '''Reset the Embedder for a new trial'''
 
@@ -269,6 +273,8 @@ class DenseEmbedder:
 
         self.vlog('done\n')
 
+
+    # seed
 
     def _first_cell(self):
         '''Pick the first cell to place'''
@@ -312,6 +318,9 @@ class DenseEmbedder:
         self.log('failed all {0} attempts\n'.format(self.FIRST_QBIT_ATTEMPTS))
         return None
 
+
+    # handling
+
     def _assign_qbit(self, cell, qbit):
         '''Associate the given qubit and cell'''
 
@@ -339,8 +348,6 @@ class DenseEmbedder:
 
         # disable qubit from Routing framework
         self._router.disable_nodes([qbit])
-
-
 
     def _assign_paths(self, paths):
         '''Set all relevant flags for the given routed paths'''
@@ -486,6 +493,68 @@ class DenseEmbedder:
             self._reserve_qbits(res_check)
 
 
+    # multi-source search
+
+    def _setup_extend_gen(self, src, extender):
+        '''Setup the extension generator from the given source qubit'''
+
+        for qb in self._qps[src].reserve:
+            self._qps[qb].reserved = False
+
+        gen = extender(src)
+        next(gen)   # burn src qbit and initialise
+
+        for qb in self._qps[src].reserve:
+            self._qps[qb].reserved = True
+
+        return gen
+
+    def _multi_source_search(self, srcs, adj, forb=set(), typ='dijkstra'):
+        '''Attempt to find the lowest cost suitable qubits with free paths to
+        the given sources
+
+        inputs:
+            srcs    : iterable of sources to search from
+            adj     : required number of free neighbors at target
+            forb    : set of forbidden nodes to exclude from search
+            typ     : type of search expansion, Dijkstra search by default
+
+        return:
+            cands   : iterable of all candidate qbits
+        '''
+
+        try:
+            extender = self.extenders[typ]
+        except:
+            raise PlacementError('Invalid MSS extender type')
+
+        # setup extender from each src
+        extend = {src: self._setup_extend_gen(src, extender) for src in srcs}
+        visits = {qb: 0 for qb in self._chimera}
+
+        # main search loop
+        while True:
+            cands = self._next_mss_candidates(extend, visits)
+            # get next set of intersections between extensions
+            cands = []
+            for src, ext in extend.items():
+                try:
+                    node = next(ext)
+                except StopIteration:
+                    return None     # no more nodes to visit, failed
+                visits[node] += 1
+                if visits[node] == len(srcs) and node not in forb:
+                    cands.append(node)
+            mcands = map(lambda x: [self._suitability(x, srcs), x], cands)
+            cands = sorted(mcands, reverse=True)
+            cands = list(filter(lambda x: x[0] >= adj, cands))
+
+            if cands:
+                return cands
+
+
+
+
     def _place_cell(self, cell):
         '''Attempt to find a placement for the given cell.
 
@@ -494,7 +563,8 @@ class DenseEmbedder:
             paths   : list of paths from previously placed neighbours to the
                       assigned qubit
         '''
-        pass
+
+        self.log('')
 
     def _update_tile_occ(self, qbits, dec=False):
         '''Either add or remove the set of qubits from the tile row/col
