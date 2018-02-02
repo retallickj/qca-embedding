@@ -509,6 +509,23 @@ class DenseEmbedder:
 
         return gen
 
+    def _next_mss_candidates(self, extend, visits, forb):
+        '''Get the next set of MSS candidates: those reached by all extenders'''
+
+        cands = []
+        for src, ext in extend:
+            try:
+                node = next(ext)
+            except StopIteration:
+                raise KeyError('No MSS solution found...')
+            visits[node] += 1
+            if visits[node] == len(extend) and node not in forb:
+                cands.append(node)
+        mcands = map(lambda x: [self._suitability(x, extend.keys()), x], cands)
+        cands = sorted(mcands, reverse=True)
+        cands = list(filter(lambda x: x[0] >= adj, cands))
+        return cands
+
     def _multi_source_search(self, srcs, adj, forb=set(), typ='dijkstra'):
         '''Attempt to find the lowest cost suitable qubits with free paths to
         the given sources
@@ -534,21 +551,10 @@ class DenseEmbedder:
 
         # main search loop
         while True:
-            cands = self._next_mss_candidates(extend, visits)
-            # get next set of intersections between extensions
-            cands = []
-            for src, ext in extend.items():
-                try:
-                    node = next(ext)
-                except StopIteration:
-                    return None     # no more nodes to visit, failed
-                visits[node] += 1
-                if visits[node] == len(srcs) and node not in forb:
-                    cands.append(node)
-            mcands = map(lambda x: [self._suitability(x, srcs), x], cands)
-            cands = sorted(mcands, reverse=True)
-            cands = list(filter(lambda x: x[0] >= adj, cands))
-
+            try:
+                cands = self._next_mss_candidates(extend, visits, forb)
+            except KeyError:
+                return None     # search finished and failed
             if cands:
                 return cands
 
