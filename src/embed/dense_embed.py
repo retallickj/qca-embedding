@@ -11,13 +11,14 @@ from __future__ import print_function   # for verbose functionality
 __author__      = 'Jake Retallick'
 __copyright__   = 'MIT License'
 __version__     = '2.0'
-__date__        = '2018-01-30'      # last update
+__date__        = '2018-02-01'      # last update
 
 from core.utility import dget, range_product
 from collections import defaultdict
 import networkx as nx
 import numpy as np
 
+from .router import Router
 
 # exceptions
 
@@ -59,6 +60,7 @@ class QubitPars:
 
     cell = None         # cell the qubit is assigned to, else None
     reserved = False    # qbit is reserved for pending adjacency
+    reserve = set()     # set of qbits reserved by this qbit
     taken = False       # qbit taken for routing
     prox = set()        # set of assigned adjacent qubits
     c_in = set()        # set of free internal qubits
@@ -148,6 +150,8 @@ class DenseEmbedder:
             self.set_chimera(chimera)
         else:
             self.chimera = None
+
+        self._router = Router()
 
     def set_logger(self, logfile=None, append=False):
         '''Override the logger'''
@@ -242,6 +246,9 @@ class DenseEmbedder:
             raise SourceError('Invalid source graph')
         self.source = source
 
+        # set up router
+        self._router.initialise(source)
+
         self.vlog('done\n')
 
 
@@ -275,7 +282,6 @@ class DenseEmbedder:
         self.log('done\n')
 
         return cell
-
 
     def _first_qbit(self, cell):
         '''Find the qubit seed for the first cell'''
@@ -332,19 +338,153 @@ class DenseEmbedder:
             self._qps[qbit].prox.add(qbit)
 
         # disable qubit from Routing framework
-        Routing.disable_qubits([qbit])
+        self._router.disable_nodes([qbit])
 
 
 
     def _assign_paths(self, paths):
         '''Set all relevant flags for the given routed paths'''
-        pass
+
+        reserve_check = set()   # set of qbits to check later for reserves
+        for path in paths:
+            key = (self._qps[qb].cell for qb in [path[0], path[-1]])
+            for qbit in path:
+                self._qps[qbit].taken = True
+                self._qps[qbit].paths.add(key)
+                # if qbit has any prox, flag for later reserve check
+                if self._qps[qbit].prox:
+                    reserve_check |= self._qps[qbit].prox
+            self._update_tile_occ(path[1:-1])
+            self._router.disable_nodes(path[1:-1])
+            self._paths[key] = path
+
+        self._set_vacancy()
+        self._reserve_qubits(reserve_check)
+
+    def _pop_reserve(self, qbit):
+        '''Clears the reserve of the given qubit and unsets each reserve qbits
+        reserved flag. Returns a copy of the reserve'''
+
+        reserve = self._qps[qbit].reserve.copy()
+        if reserve:
+            for qb in reserve:
+                self._qps[qb].reserved = False
+            self._update_tile_occ(reserve, dec=True)
+            self._qps[qbit].reserve.clear()
+        return reserve
+
+    def _poll_neighbors(self, qbit):
+        '''Get a list of unreserved neighbors for the given qbit and update the
+        qbits internal and external counts'''
+
+        unreserved = []
+        self._qps[qbit].c_in = set()
+        self._qps[qbit].c_out = 0
+        for qb in self.chimera.neighbors(qbit):
+            if not (self._qps[qb].taken or self._qps[qb].reserved):
+                unreserved.append(qb)
+                if qb[:2] == qbit[:2]:
+                    self._qps[qbit].c_in.add(qb)
+                else:
+                    self._qps[qbit].c_out += 1
+        return unreserved
+
+    def _push_reserve(self, qbit, reserve):
+        '''Adds a reserve to the given qubit. Returns a set of qbits which
+        may now need an updated reserve'''
+        res_check = set()
+        self._qps[qbit].reserve = reserve.copy()
+        for qb in reserve:
+            self._qps[qb].reserved = True
+            res_check |= self._qps[qb].prox
+        self._update_tile_occ(reserve)
+        return res_check
 
     def _reserve_qbits(self, qbits):
         '''For each of a set of qubits, check if the adjacent qubits need to
         be reserved in order to satisfy connectivity constraints. Reserve as
         appropriate.'''
-        pass
+
+        if not qbits:
+            return
+
+        for qbit in qbits:
+            cell = self._qps[qbit].cell
+            # get number of adjacent unplaced cells for associated cell
+            if cell is None:
+                raise KeyError('Qubit {0} not assigned to a cell'.format(qbit))
+            nadj = self._cps[cell].nadj
+
+            old_reserve = self._pop_reserve(qbit)   # previous reserved neighbors
+            unreserved = self._poll_neighbors(qbit) # new unreserved neighbors
+
+            # reserve only if there are only just enough unreserved qbits
+            if nadj == len(unreserved):
+                res_check = self._push_reserve(qbit, unreserved)
+                #NOTE this might actually be != rather than ==
+                if old_reserve == unreserved:
+                    self._reserve_qbits(res_check - set(qbits))
+            elif nadj > len(reserved):
+                raise PlacementError('No free qubits for {0}'.format(cell))
+
+        self._set_vacancy()
+
+    def _forget_qbit(self, qbit, check=True):
+        '''Release a given qubit. Returns a list of all connected paths which
+        should be forgotten before continuing with the embedding'''
+
+        cell = self._qps[qbit].cell
+        if cell is None:
+            raise KeyError('Qubit {0} not assigned to a cell'.format(qbit))
+
+        self._update_tile_occ([qbit], dec=True)
+
+        self._qps[qbit].cell = None
+        self._qps[qbit].assigned = False
+        self._qps[qbit].taken = False
+
+        self._cps[cell].qbit = None
+        self._cps[cell].placed = False
+
+        for c2 in self._source.neighbor(cell):
+            self._cps[c2] += 1
+
+        self._pop_reserve(qbit)
+
+        if check:
+            self._set_vacancy()
+
+        for qb in self.chimera.neighbors(qbit):
+            self._qps[qb].prox.remove(qbit)
+
+        self._router.enable_nodes([qbit])
+
+        paths = self._qps[qbit].paths.copy()
+        self._qps[qbit].clear()
+        return paths
+
+    def _forget_path(self, key, check=True):
+        '''Free up qubits of the path with the given key and update appropriate
+        flags. If check, also check qubit reservations for nearby qubits.'''
+
+        path = self._paths.pop(key)
+
+        # remove path from the end nodes
+        for qb in [path[0], path[-1]]:
+            if key in self._qps[qb].paths:
+                self._qps[qb].paths.remove(key)
+
+        res_check = set()
+        for qbit in path[1:-1]:
+            self._qps[qbit].taken = False
+            self._qps[qbit].paths.clear()
+            if self._qps[qbit].prox:
+                res_check |= self._qps[qbit].prox
+        self._router.enable_nodes(path[1:-1])
+        self._update_tile_occ(path[1:-1], dec=True)
+        if check:
+            self._reserve_qbits(res_check)
+
 
     def _place_cell(self, cell):
         '''Attempt to find a placement for the given cell.
