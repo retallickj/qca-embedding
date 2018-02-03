@@ -17,6 +17,7 @@ from core.utility import dget, range_product
 from collections import defaultdict
 import networkx as nx
 import numpy as np
+from heapq import heappush, heappop
 
 from .router import Router
 
@@ -495,6 +496,34 @@ class DenseEmbedder:
 
     # multi-source search
 
+    def _extend_dijkstra(self, src):
+        '''Generator for Dijkstra search extension'''
+
+        visited = {}
+        for qb in self._chimera:
+            visited[qb] = self._qps[qb].taken or self._qps[qb].reserved
+        costs = {qb: 2*len(self._chimera) for qb in self._chimera}
+        queue = [src]
+        costs[src]=0
+
+        # search loop
+        while queue:
+            # pop and yield the lowest cost node in the heap
+            qbit = heappop(queue)
+            if visited[qbit]:
+                continue
+            yield qbit
+            visited[qbit] = True
+
+            # update neighbor costs
+            for qb in self._chimera[qbit]:
+                if not visited[qb]:
+                    dcost = self.IN_TILE_COST if qb[:2]==qbit[:2] else self.OUT_TILE_COST
+                    dcost += self.EDGE_REP_COST*max(map(abs,[qb[0]-.5*(self.M-1),
+                                                             qb[1]-.5*(self.N-1)]))
+                    costs[qb] = min(costs[qb], costs[qbit]+dcost)
+                    heappush(queue, qb)
+
     def _setup_extend_gen(self, src, extender):
         '''Setup the extension generator from the given source qubit'''
 
@@ -553,10 +582,10 @@ class DenseEmbedder:
         while True:
             try:
                 cands = self._next_mss_candidates(extend, visits, forb)
+                if cands:
+                    return cands
             except KeyError:
                 return None     # search finished and failed
-            if cands:
-                return cands
 
 
 
