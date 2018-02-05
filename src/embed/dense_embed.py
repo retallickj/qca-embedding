@@ -590,6 +590,10 @@ class DenseEmbedder:
 
 
 
+    def _suitability(self, qbit, srcs=[]):
+        '''Determine the effective number of free adjacent qubits. Affected
+        by the number of mutual free qubits for in-tile assigned qubits'''
+
     def _place_cell(self, cell):
         '''Attempt to find a placement for the given cell.
 
