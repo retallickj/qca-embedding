@@ -18,10 +18,16 @@ from collections import defaultdict
 import networkx as nx
 import numpy as np
 from heapq import heappush, heappop
+from copy import copy as cp
+from itertools import chain
 
 from .router import Router
 
 # exceptions
+
+class SeamError(Exception):
+    '''Failure due to seam opening'''
+    pass
 
 class PlacementError(Exception):
     '''Custom Exception for all failure modes of the Embedding algorithm'''
@@ -587,12 +593,39 @@ class DenseEmbedder:
             except KeyError:
                 return None     # search finished and failed
 
-
-
+    # cell placement
 
     def _suitability(self, qbit, srcs=[]):
         '''Determine the effective number of free adjacent qubits. Affected
         by the number of mutual free qubits for in-tile assigned qubits'''
+
+        # for each src reserve that intersects the qbit's neighbourhood: 1 pt
+        nbh = set(self._chimera[qbit])
+        suit = sum(bool(nbh & self._qps[src].reserve) for src in srcs)
+
+        for qb in nbh:
+            if qb in srcs:
+                suit += 1
+            elif not (self._qps[qb].taken or self._qps[qb].reserved):
+                suit += 1
+                if qb[:2] == qbit[:2]:
+                    c_in.add(qb)
+
+        # account for negotitating free qubits with other in-tile qubits
+        m,n,h,l = qbit
+        qbs = [(m,n,h,_l) for _l in range(self.L) if _l != l]
+        qbs = filter(lambda x: x in self._qps and self._qps[x.assigned], qbs)
+
+        for qb in qbs:
+            cell = self._qps[qb].cell
+            suit -= max(0, self._qps[qb].nadj - self._qps[qb].c_out -
+                            len(self._qps[qb].c_in - c_in))
+
+        return suit
+
+    def _suitable_qbit(self, adj_qbs, avl, forb, reserves):
+        '''Attempt to find a suitable qbit '''
+        pass
 
     def _place_cell(self, cell):
         '''Attempt to find a placement for the given cell.
@@ -603,7 +636,148 @@ class DenseEmbedder:
                       assigned qubit
         '''
 
-        self.log('')
+        self.log('Placing cell: {0}\n'.format(cell))
+
+        seam_flag = False   # open seam next loop iteration
+        qbit = None         # assigned cell, loop escape
+
+        # qubits used for placed adjacent cells
+        adj_qbs = [self._cps[c].qbit for c in self._source[cell]
+                            if self._cps[c].placed]
+        avl = len(self._source[cell])
+        reserves = {qb: pars.reserve for qb,pars in self._qps.items()}
+
+        # multisource search parameters
+        forb = set()        # list of forbidden qbits for MSS
+        search_count = 0    #  counter for number of failed searches
+
+        # placement loop
+        while qbit is None:
+
+            if seam_flag:
+                seam_flag = False
+                adj_qbs = self._open_seam() # adj_qbs can change on seam opening
+
+            # attempt to find suitable qbit and handle result
+            qbit = self._suitable_qbit(adj_qbs, avl, forb, reserves)
+            if qbit is None:
+                search_count += 1
+                if search_count >= self.MAX_SEARCH_COUNT:
+                    seam_flag, search_count = True, 0
+                    forb.clear()
+                else:
+                    forb.update(map(lambda x: x[1], qbits))
+
+        paths = cp(self._router.paths.values())
+        self._router.disable_nodes(set(chain(*paths)))
+
+        self.log('Placed on qubit: {0}\n\n'.format(qbit))
+
+        return qbit, paths
+
+
+
+            # get list of candidate qbits
+            qbits = self._multi_source_search(adj_qbits, avl, forb=forb)
+            if not qbits:
+                seam_flag = True
+                continue
+            self.log('Found {0} candidate qubits: {1}\n'.format(
+                        len(qbits), ','.join(qb[1] for qb in qbits)))
+
+            for suit, qb in qbits:
+                if self._route(qb, adj_qbs, reserves):
+                    qbit = qb
+                    break
+            else:
+                self.log('No suitable qbit found\n')
+                search_count += 1
+                if search_count >= self.MAX_SEARCH_COUNT:
+                    seam_flag = True
+                    search_count = 0
+                    forb.clear()
+                else:
+                    forb.update(map(lambda x: x[1], qbits))
+
+
+    # seam opening
+
+    def _available_seams(self, qbits):
+        '''Identify possible seams to split given a list of qbits to be routed.
+        Seams are candidates if they arenext to one of the qubits and can be
+        opened'''
+
+        seams = set()
+
+        # NOTE: could clean this up a bit... 4 similar blocks
+        for qbit in qbits:
+
+            # open left
+            if self._vacancy[0] > 0 and qbit[1] > self._vacancy[0]:
+                if qbit[1] > 1:
+                    seams.add(((1, qbit[1]), False))
+                seams.add(((1, qbit[1]+1), False))
+
+            # open right
+            if self._vacancy[1] > 0 and qbit[1] < ((self.N-1)-self._vacancy[1]):
+                seams.add(((1, qbit[1]), True))
+                if qbit[1] < (self.N-2):
+                    seams.add(((1, qbit[1]+1), True))
+
+            # open down
+            if self._vacancy[2] > 0 and qbit[0] > self._vacancy[2]:
+                if qbit[0] > 1:
+                    seams.add(((0, qbit[0]), False))
+                seams.add(((0, qbit[0]+1), False))
+
+            # open up
+            if self._vacancy[3] > 0 and qbit[0] < ((self.M-1)-self._vacancy[3]):
+                seams.add(((0, qbit[0]), True))
+                if qbit[0] < (self.M-2):
+                    seams.add(((0, qbit[0]+1), True))
+
+        return seams
+
+
+
+    def _open_seam(self, adj_qbits):
+        '''Identify and attempt to open a seam to allow for new routes'''
+
+        self.log('Running Seam Opening Routine\n')
+
+        if not any(self._vacancy):
+            self.log('No vacant columns/rows to open\n\n')
+            raise SeamError('Out of room')
+
+        seams = self._available_seams(adj_qbits)
+
+        # analyze seams
+        seam_dicts = map(lambda s: self._gen_seam_dict(s, adj_qbits), seams)
+        seam_dicts = filter(None, seam_dicts)
+
+        if len(seam_dicts) == 0:
+            self.log('No suitable seams detected\n')
+            raise SeamError('No suitable seams')
+
+        # select seam to open
+        seam_dict = self._select_seam(seam_dicts)
+        self.log('current vacancy: {0}\n'.format(str(self._vacancy)))
+        self.log('selected seam {0} :: {1}\n'.format(
+                    str(seam_dict['sm']), str(seam_dict['dr'])))
+
+        if not self._split_seam(**seam_dict):
+            self.log('Failed to open seam\n\n')
+            raise SeamError('Failed to split seam')
+        self.log('Seam successfully opened...\n')
+        # update adjacent qubits
+        adj_qbits = [self._cps[c].qbit for c in self._cps if self_cps[c].placed]
+        self.log('New adjacent qbits: {0}\n'.format(str(adj_qbits)))
+
+        return adj_qbits
+
+
+
+    # other, for now
 
     def _update_tile_occ(self, qbits, dec=False):
         '''Either add or remove the set of qubits from the tile row/col

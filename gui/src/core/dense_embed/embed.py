@@ -1155,7 +1155,7 @@ def placeCell(cell):
     Routing.disableQubits(qbs)
 
     log('Placed on qubit: %s\n\n' % str(qbit))
-    
+
     return qbit, paths
 
 

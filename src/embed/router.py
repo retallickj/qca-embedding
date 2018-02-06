@@ -70,7 +70,7 @@ class Router:
                 self._pars[node].active = False
                 self._pars[node].hist_cost = self.COST_DISABLED
 
-    def route(self, routes, reserved):
+    def route(self, routes, reserves):
         '''Run negotiated congestion for the set of given routes. Special
         consideration is given to reserved qubits so they must be pass as an
         input.'''
@@ -80,7 +80,7 @@ class Router:
 
         rt_set = set([node for rt in routes for node in rt])    # list of route nodes
         res_nodes = set()   # set of all reserved nodes
-        for s in reserved.values():
+        for s in reserves.values():
             res_nodes.update(s)
 
         # enable route ends
@@ -99,7 +99,7 @@ class Router:
                 # mark off all end-points and reserved nodes as used
                 for node in rt_set|res_nodes:
                     self._pars[end].marked = True
-                self.paths[rt] = self._best_path(rt, reserved)
+                self.paths[rt] = self._best_path(rt, reserves)
                 self._update_pars()
 
             # update history costs
@@ -200,15 +200,15 @@ class Router:
             new_paths.append(tpath)
         return new_paths
 
-    def _best_path(self, route, reserved):
-        '''Determine the best path for the given route. Reserved[node] should
+    def _best_path(self, route, reserves):
+        '''Determine the best path for the given route. reserves[node] should
         give the set of nodes which have been reserved for routes to node.'''
 
         # add start of path
         heappush(self._cpaths, [0, route[0])  # first path value is the cost
 
         # free reserved nodes for routing
-        for node in reserved[route[0]].union(reserved[route[1]]):
+        for node in reserves[route[0]] | reserves[route[1]]:
             self._pars[node].marked = False
         self._pars[route[1]].marked = False     # free end node
 
