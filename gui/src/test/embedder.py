@@ -3,6 +3,7 @@
 
 
 
+import sys; assert sys.version_info < (3,), 'Embedding methods only support Python 2'
 from traceback import print_exc
 
 from chimera import Chimera
@@ -13,9 +14,9 @@ _embedders = {'dense': True,
              'heur': True}
 
 try:
-    from core.dense_embed.embed import denseEmbed, setChimera
-    from core.dense_embed.convert import converttoModels
-except Expection as e:
+    from dense_embed.embed import denseEmbed, setChimera
+    from dense_embed.convert import convertToModels
+except Exception as e:
     print('Could not load dense embedding method')
     _embedders['dense'] = False
     print(print_exc())
