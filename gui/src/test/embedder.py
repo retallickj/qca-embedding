@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+import sys
+assert sys.version_info < (3,), 'Embedding methods only support Python 2'
 
-
-import sys; assert sys.version_info < (3,), 'Embedding methods only support Python 2'
 from traceback import print_exc
 
 from chimera import Chimera
